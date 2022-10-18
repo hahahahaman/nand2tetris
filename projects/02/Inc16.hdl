@@ -33,12 +33,10 @@ CHIP Inc16 {
     HalfAdder(a=in[14], b=c14, sum=out[14], carry=c15);
     HalfAdder(a=in[15], b=c15, sum=out[15], carry=c16);
 
-    // generate 16 bit 1
+    // alternate solution, generate 16 bit 1 and add it
     /* Not16(in=in, out=notin); */
-    /* And16(a=in, b=notin, out=b); */
-    // value cannot be changed?
-    // sub bus may not be changed?
-    // fucking stupid
-    /* Not(in=zero, out=b[0]); */
-    /* Add16(a=a, b=out, out=out); */
+    /* Or16(a=in, b=notin, out=negative1); */
+    /* LeftShift16(in=negative1, out=negative2); */
+    /* Not16(in=negative2, out=one); */
+    /* Add16(a=in, b=one, out=out); */
 }

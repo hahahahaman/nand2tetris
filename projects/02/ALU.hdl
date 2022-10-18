@@ -42,5 +42,43 @@ CHIP ALU {
         ng; // 1 if (out < 0),  0 otherwise
 
     PARTS:
-   // Put you code here:
+
+    // get 0 and 1 bit values
+    /* Not(in=x[0], out=notin0); */
+    /* And(a=x[0], b=notin0, out=zero); */
+    /* Not(in=zero, out=one); */
+
+    // get 16 bit 0
+    Not16(in=x, out=notx);
+    And16(a=x, b=notx, out=zero16bit);
+
+    // if (zx == 1) set x = 0        // 16-bit constant
+    Mux16(a=x, b=zero16bit, sel=zx, out=x1);
+    Not16(in=x1, out=notx1);
+
+    // if (nx == 1) set x = !x       // bitwise not
+    Mux16(a=x1, b=notx1, sel=nx, out=xval);
+
+    // if (zy == 1) set y = 0        // 16-bit constant
+    Mux16(a=y, b=zero16bit, sel=zy, out=y1);
+
+    // if (ny == 1) set y = !y       // bitwise not
+    Not16(in=y1, out=noty1);
+    Mux16(a=y1, b=noty1, sel=ny, out=yval);
+
+    // f, compute out = x + y (if 1) or x & y (if 0)
+    Add16(a=xval, b=yval, out=xplusy);
+    And16(a=xval, b=yval, out=xandy);
+    Mux16(a=xandy, b=xplusy, sel=f, out=o);
+
+    // if (no == 1) set out = !out   // bitwise not
+    Not16(in=o, out=noto);
+    Mux16(a=o, b=noto, sel=no, out=o1);
+    And16(a=o1, b=o1, out=out);
+
+    // if (out == 0) set zr = 1
+    Equals16(a=o1, b=zero16bit, out=zr);
+
+    // if (out < 0) set ng = 1
+    IsNegative16(in=o1, out=ng);
 }
