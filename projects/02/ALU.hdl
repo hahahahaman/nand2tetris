@@ -54,9 +54,9 @@ CHIP ALU {
 
     // if (zx == 1) set x = 0        // 16-bit constant
     Mux16(a=x, b=zero16bit, sel=zx, out=x1);
-    Not16(in=x1, out=notx1);
 
     // if (nx == 1) set x = !x       // bitwise not
+    Not16(in=x1, out=notx1);
     Mux16(a=x1, b=notx1, sel=nx, out=xval);
 
     // if (zy == 1) set y = 0        // 16-bit constant

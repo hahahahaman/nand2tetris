@@ -10,10 +10,71 @@
  * (the loaded value will be emitted to out from the next time step onward).
  */
 
+/*
+** 000000
+** 000001
+** 000010
+** 000011
+** 000100
+** 000101
+** 000110
+** 000111
+**
+** 001000
+** 001001
+** 001010
+** 001011
+** 001100
+** 001101
+** 001110
+** 001111
+**
+** 010000
+** 010001
+** 010010
+** 010011
+** 010100
+** 010101
+** 010110
+** 010111
+*/
+
+
 CHIP RAM64 {
     IN in[16], load, address[6];
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    DMux8Way(in=load,
+             sel[0]=address[3], sel[1]=address[4], sel[2]=address[5],
+             a=r0, b=r1, c=r2, d=r3, e=r4, f=r5, g=r6, h=r7);
+
+    RAM8(in=in, load=r0,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV0);
+    RAM8(in=in, load=r1,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV1);
+    RAM8(in=in, load=r2,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV2);
+    RAM8(in=in, load=r3,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV3);
+    RAM8(in=in, load=r4,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV4);
+    RAM8(in=in, load=r5,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV5);
+    RAM8(in=in, load=r6,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV6);
+    RAM8(in=in, load=r7,
+         address[0]=address[0], address[1]=address[1], address[2]=address[2],
+         out=RV7);
+
+    Mux8Way16(a=RV0, b=RV1, c=RV2, d=RV3, e=RV4, f=RV5, g=RV6, h=RV7,
+              sel[0]=address[3], sel[1]=address[4], sel[2]=address[5],
+              out=out);
 }

@@ -10,10 +10,36 @@
  * (the loaded value will be emitted to out from the next time step onward).
  */
 
+/*
+** 000
+** 001
+** 010
+** 011
+** 100
+** 101
+** 110
+** 111
+*/
+
+// Hmm im trying to imagine this.
+//
+
 CHIP RAM8 {
     IN in[16], load, address[3];
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // choose the correct register
+    DMux8Way(in=load, sel=address, a=r0, b=r1, c=r2, d=r3, e=r4, f=r5, g=r6, h=r7);
+
+    Register(in=in, load=r0, out=RV0);
+    Register(in=in, load=r1, out=RV1);
+    Register(in=in, load=r2, out=RV2);
+    Register(in=in, load=r3, out=RV3);
+    Register(in=in, load=r4, out=RV4);
+    Register(in=in, load=r5, out=RV5);
+    Register(in=in, load=r6, out=RV6);
+    Register(in=in, load=r7, out=RV7);
+
+    Mux8Way16(a=RV0, b=RV1, c=RV2, d=RV3, e=RV4, f=RV5, g=RV6, h=RV7, sel=address, out=out);
 }

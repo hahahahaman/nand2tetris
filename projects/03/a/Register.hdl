@@ -14,5 +14,53 @@ CHIP Register {
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // can do it with bits
+    Mux(a=PrevIn0, b=in[0], sel=load, out=NextIn0);
+    DFF(in=NextIn0, out=PrevIn0, out=out[0]);
+
+    Mux(a=PrevIn1, b=in[1], sel=load, out=NextIn1);
+    DFF(in=NextIn1, out=PrevIn1, out=out[1]);
+
+    Mux(a=PrevIn2, b=in[2], sel=load, out=NextIn2);
+    DFF(in=NextIn2, out=PrevIn2, out=out[2]);
+
+    Mux(a=PrevIn3, b=in[3], sel=load, out=NextIn3);
+    DFF(in=NextIn3, out=PrevIn3, out=out[3]);
+
+    Mux(a=PrevIn4, b=in[4], sel=load, out=NextIn4);
+    DFF(in=NextIn4, out=PrevIn4, out=out[4]);
+
+    Mux(a=PrevIn5, b=in[5], sel=load, out=NextIn5);
+    DFF(in=NextIn5, out=PrevIn5, out=out[5]);
+
+    Mux(a=PrevIn6, b=in[6], sel=load, out=NextIn6);
+    DFF(in=NextIn6, out=PrevIn6, out=out[6]);
+
+    Mux(a=PrevIn7, b=in[7], sel=load, out=NextIn7);
+    DFF(in=NextIn7, out=PrevIn7, out=out[7]);
+
+    Mux(a=PrevIn8, b=in[8], sel=load, out=NextIn8);
+    DFF(in=NextIn8, out=PrevIn8, out=out[8]);
+
+    Mux(a=PrevIn9, b=in[9], sel=load, out=NextIn9);
+    DFF(in=NextIn9, out=PrevIn9, out=out[9]);
+
+    Mux(a=PrevIn10, b=in[10], sel=load, out=NextIn10);
+    DFF(in=NextIn10, out=PrevIn10, out=out[10]);
+
+    Mux(a=PrevIn11, b=in[11], sel=load, out=NextIn11);
+    DFF(in=NextIn11, out=PrevIn11, out=out[11]);
+
+    Mux(a=PrevIn12, b=in[12], sel=load, out=NextIn12);
+    DFF(in=NextIn12, out=PrevIn12, out=out[12]);
+
+    Mux(a=PrevIn13, b=in[13], sel=load, out=NextIn13);
+    DFF(in=NextIn13, out=PrevIn13, out=out[13]);
+
+    Mux(a=PrevIn14, b=in[14], sel=load, out=NextIn14);
+    DFF(in=NextIn14, out=PrevIn14, out=out[14]);
+
+    Mux(a=PrevIn15, b=in[15], sel=load, out=NextIn15);
+    DFF(in=NextIn15, out=PrevIn15, out=out[15]);
+
 }

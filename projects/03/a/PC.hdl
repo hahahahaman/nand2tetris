@@ -11,10 +11,23 @@
  * else                    out[t+1] = out[t]
  */
 
+// seems doable, i just need to guarantee that
+
 CHIP PC {
     IN in[16],load,inc,reset;
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // get 16 bit 0
+    Not16(in=in, out=NotIn);
+    And16(a=in, b=NotIn, out=zero16bit);
+
+    // reset?
+    Inc16(in=PrevOut, out=IncPrevOut);
+    Mux16(a=PrevOut, b=IncPrevOut, sel=inc, out=IncOut);
+    Mux16(a=IncOut, b=in, sel=load, out=LoadOut);
+    Mux16(a=LoadOut, b=zero16bit, sel=reset, out=ResetOut);
+
+    Or8Way(in[0]=inc, in[1]=load, in[2]=reset, out=ControlBit);
+    Register(in=ResetOut, load=ControlBit, out=PrevOut, out=out);
 }
