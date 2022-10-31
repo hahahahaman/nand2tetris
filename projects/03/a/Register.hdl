@@ -62,5 +62,4 @@ CHIP Register {
 
     Mux(a=PrevIn15, b=in[15], sel=load, out=NextIn15);
     DFF(in=NextIn15, out=PrevIn15, out=out[15]);
-
 }
