@@ -22,10 +22,49 @@
  * Screen and Keyboard chip specifications given in the book.
  */
 
+// RAM16k   : 0 - 16383
+// Screen 8k: 16384 - 24575  // 2^14 = 16384
+// Keyboard : 24576          // 2^14 + 2^13 = 24576
+                             // 24576 = 0x6000 = 0110 0000 0000 0000
+
+// i need to decide which part to access based on the address im given
+
 CHIP Memory {
     IN in[16], load, address[15];
     OUT out[16];
 
     PARTS:
-    // Put your code here:
+    // RAM16K
+    Not(in=address[14], out=AccessRAM);
+    And(a=load,b=AccessRAM,out=LoadRAM);
+    // 14 bit address
+    RAM16K(in=in, load=LoadRAM,
+           address[0]=address[0], address[1]=address[1], address[2]=address[2],
+           address[3]=address[3], address[4]=address[4], address[5]=address[5],
+           address[6]=address[6], address[7]=address[7], address[8]=address[8],
+           address[9]=address[9], address[10]=address[10], address[11]=address[11],
+           address[12]=address[12], address[13]=address[13],
+           out=RAMOut);
+
+    // Screen
+    Not(in=address[13], out=NotBit13);
+    And(a=address[14], b=NotBit13, out=AccessScreen);
+    And(a=load, b=AccessScreen, out=LoadScreen);
+    // 13 bit address
+    Screen(in=in, load=LoadScreen,
+           address[0]=address[0], address[1]=address[1], address[2]=address[2],
+           address[3]=address[3], address[4]=address[4], address[5]=address[5],
+           address[6]=address[6], address[7]=address[7], address[8]=address[8],
+           address[9]=address[9], address[10]=address[10], address[11]=address[11],
+           address[12]=address[12],
+           out=ScreenOut);
+
+    // Keyboard
+    And(a=address[13], b=address[14], out=AccessKeyboard);
+    Keyboard(out=KeyboardOut); // 16 bit output, out[16]
+
+    // Output
+    Mux4Way16(a=RAMOut, b=ScreenOut, c=KeyboardOut,
+              sel[0]=AccessScreen, sel[1]=AccessKeyboard,
+              out=out);
 }
