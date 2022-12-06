@@ -17,9 +17,9 @@
 // Implementation: the ALU logic manipulates the x and y inputs
 // and operates on the resulting values, as follows:
 // if (zx == 1) set x = 0        // 16-bit constant
-// if (nx == 1) set x = !x       // bitwise not
+// if (nx == 1) set x = !x       // bitwise not?
 // if (zy == 1) set y = 0        // 16-bit constant
-// if (ny == 1) set y = !y       // bitwise not
+// if (ny == 1) set y = !y       // bitwise not?
 // if (f == 1)  set out = x + y  // integer 2's complement addition
 // if (f == 0)  set out = x & y  // bitwise and
 // if (no == 1) set out = !out   // bitwise not
@@ -29,12 +29,12 @@
 CHIP ALU {
     IN  
         x[16], y[16],  // 16-bit inputs        
-        zx, // zero the x input?
-        nx, // negate the x input?
-        zy, // zero the y input?
-        ny, // negate the y input?
+        zx, // zero the x input
+        nx, // not the x input
+        zy, // zero the y input
+        ny, // not the y input
         f,  // compute out = x + y (if 1) or x & y (if 0)
-        no; // negate the out output?
+        no; // not the output
 
     OUT 
         out[16], // 16-bit output
