@@ -25,6 +25,11 @@
  * than to the address resulting from executing the current instruction. 
  */
 
+// 1. handle the A instruction !
+// 2. figure out the destination to store ALU ouput !
+// 3. figure out the jump
+// 4. handle the computation logic
+
 CHIP CPU {
 
     IN  inM[16],         // M value input  (M = contents of RAM[A])
@@ -39,5 +44,116 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    Zero(in=inM[0], out=Zero);
+    Not(in=Zero, out=One);
+
+    // i need to decode the instruction
+    // i xx a cccccc ddd jjj
+    // i - instruction type, 0 for A-type, 1 for C-type
+    // A: 15 other bits are a constant
+    // C: a-bits and c-bits = comp
+    //    d-bits = dest,
+    //    j-bits = jump
+    //    xx-bits aren't used
+
+    // d1 d2 d3: A D M
+    // 5  4  3, bit position
+
+    // i - instruction type, 0 for A-type, 1 for C-type
+    Mux16(a=instruction, b=ALUOut, sel=instruction[15], out=AIn);
+
+    // A-instruction is used to set the A register to a 15-bit value
+    Not(in=instruction[15], out=IsAInstruction);
+    Not(in=IsAInstruction, out=IsCInstruction);
+    Or(a=IsAInstruction, b=instruction[5], out=LoadA);
+    ARegister(in=AIn, load=LoadA, out=AOut,
+              out[0] =addressM[0] ,
+              out[1] =addressM[1] ,
+              out[2] =addressM[2] ,
+              out[3] =addressM[3] ,
+              out[4] =addressM[4] ,
+              out[5] =addressM[5] ,
+              out[6] =addressM[6] ,
+              out[7] =addressM[7] ,
+              out[8] =addressM[8] ,
+              out[9] =addressM[9] ,
+              out[10]=addressM[10],
+              out[11]=addressM[11],
+              out[12]=addressM[12],
+              out[13]=addressM[13],
+              out[14]=addressM[14]);
+
+
+    And(a=IsCInstruction, b=instruction[4], out=LoadD);
+    DRegister(in=ALUOut, load=LoadD, out=DOut);
+
+    And(a=IsCInstruction, b=instruction[3], out=LoadM, out=writeM);
+
+    // C-instruction bit[12] is the a-bit, which
+    // chooses between value in A-register or Memory[A]
+    Mux16(a=AOut, b=inM, sel=instruction[12], out=Y);
+
+    // computations ALU output, pg. 37, figure 2.6
+    ALU(x=DOut,y=Y,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8],
+        f=instruction[7],
+        no=instruction[6],
+
+        // 16 bit out
+        out=ALUOut, out=outM,
+        zr=EQ, // = 0
+        ng=LT  // < 0
+    );
+
+    // jump logic
+    DMux8Way(in=IsCInstruction,
+             sel[2]=instruction[2], sel[1]=instruction[1], sel[0]=instruction[0],
+             a=NullJMP,
+             b=JGT,
+             c=JEQ,
+             d=JGE,
+             e=JLT,
+             f=JNE,
+             g=JLE,
+             h=JMP);
+
+    Or(a=EQ, b=LT, out=LE);
+    Not(in=EQ, out=NotEQ);
+    Not(in=LT, out=GE);
+    And(a=NotEQ, b=GE, out=GT);
+
+    And(a=JGT, b=GT, out=DoJGT);
+    And(a=JEQ, b=EQ, out=DoJEQ);
+    And(a=JGE, b=GE, out=DoJGE);
+    And(a=JLT, b=LT, out=DoJLT);
+    And(a=JNE, b=NotEQ, out=DoJNE);
+    And(a=JLE, b=LE, out=DoJLE);
+
+    Or8Way(in[0]=JMP, in[1]=DoJGT, in[2]=DoJEQ,
+           in[3]=DoJGE, in[4]=DoJLT, in[5]=DoJNE,
+           in[6]=DoJLE,
+           out=ShouldJump);
+    Not(in=ShouldJump, out=DoInc);
+
+    // what is the address of the next instruction?
+    // If ShouldJump, then go to the address in the A-register
+    // else inc, go to next instruction
+    PC(in=AOut, load=ShouldJump, inc=DoInc,
+       reset=reset,
+       out[0] =pc[0] ,
+       out[1] =pc[1] ,
+       out[2] =pc[2] ,
+       out[3] =pc[3] ,
+       out[4] =pc[4] ,
+       out[5] =pc[5] ,
+       out[6] =pc[6] ,
+       out[7] =pc[7] ,
+       out[8] =pc[8] ,
+       out[9] =pc[9] ,
+       out[10]=pc[10],
+       out[11]=pc[11],
+       out[12]=pc[12],
+       out[13]=pc[13],
+       out[14]=pc[14] );
 }
