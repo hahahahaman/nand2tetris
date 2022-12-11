@@ -87,12 +87,14 @@
           !instruction-counter (atom 0)]
 
       (with-open [rdr (io/reader filepath)]
-        (let [lines (vec (line-seq rdr))]
+        (let [lines ((comp
+                      (partial filterv not-empty) ;; remove empty strs
+                      (partial mapv s/trim) ;; trim first
+                      )
+
+                     (line-seq rdr))]
 
           ;; first pass generate symbol table
-          ;; (loop [])
-
-          ;; assemble a program with no symbols
           (loop [i 0]
             (when (< i (count lines))
               (let [line (nth lines i)
@@ -100,6 +102,43 @@
                     command (first commands)]
                 (cond
                   (empty? command) nil
+
+                  ;; handle comment
+                  (and (= (first command) \/ )
+                       (= (second command) \/ ))
+                  ;; (println "Comment line" i ", ignoring.")
+                  nil
+
+                  ;; a-instruction: @value
+                  (= (first command) \@)
+                  (swap! !instruction-counter inc)
+
+                  ;; handle L-command: (Xxx)
+                  (and (= (first command) \( )
+                       (= (last command)  \) ))
+                  (let [symbol (subs command 1 (dec (count command)))]
+                    (when (not (contains? @!symbol-table symbol))
+                      ;; associate the symbol with a new address
+                      (swap! !symbol-table
+                             assoc symbol @!instruction-counter)))
+
+                  ;; C-instruction: dest=comp;jump
+                  :else (swap! !instruction-counter inc)))
+              (recur (inc i))))
+
+          ;; second pass translate commands
+          (loop [i 0]
+            (when (< i (count lines))
+              (let [line (nth lines i)
+                    commands (s/split line #" ")
+                    command (first commands)]
+                (cond
+                  (empty? command) nil
+
+                  ;; handle comment
+                  (and (= (first command) \/) (= (second command) \/) )
+                  ;; (println "Comment line" i ", ignoring.")
+                  nil
 
                   ;; handle A-instruction: @value
                   (= (first command) \@)
@@ -110,12 +149,10 @@
                         value
                         (if symbol?
                           (do
-                            (when (not
-                                   (contains? @!symbol-table symbol))
+                            (when (not (contains? @!symbol-table symbol))
                               ;; associate the symbol with a new address
                               (swap! !symbol-table
-                                     assoc
-                                     symbol @!symbol-address-counter)
+                                     assoc symbol @!symbol-address-counter)
                               (swap! !symbol-address-counter inc))
 
                             ;; get the address
@@ -129,21 +166,9 @@
                                   binary-str)]
                     (swap! !binary-output conj code))
 
-
                   ;; handle L-command: (Xxx)
                   (and (= (first command) \( )
-                       (= (last command)  \( ))
-                  (let [symbol (subs command 1 (dec (count command)))]
-                    (when (not (contains? @!symbol-table symbol))
-                      ;; associate the symbol with a new address
-                      (swap! !symbol-table
-                             assoc
-                             symbol @!symbol-address-counter)
-                      (swap! !symbol-address-counter inc)))
-
-                  ;; handle comment
-                  (and (= (first command) \/) (= (second command) \/) )
-                  ;; (println "Comment line" i ", ignoring.")
+                       (= (last command)  \) ))
                   nil
 
                   :else
@@ -243,23 +268,22 @@
                              (not-empty comp-binary-str)
                              (not-empty jump-binary-str))
                         (do
-                          (swap! !instruction-counter inc)
                           (swap! !binary-output conj (str "111"
                                                           comp-binary-str
                                                           dest-binary-str
                                                           jump-binary-str)))
 
                         :else
-                        (println "line " i ": Unrecognized: " command)
-                        )))))
+                        (println "line " i ": Unrecognized: " command))))))
               (recur (inc i))))))
 
       (with-open [w (io/writer hack-filename :append false)]
         (doseq [s @!binary-output]
           (.write w (str s "\n"))
-          (println s)))
+          ;; (println s)
+          ))
 
-      (println hack-filename)
+      (println "Output to filepath:" hack-filename)
       ;; (println "Done!")
       ;; (println "SymbolTable:")
       ;; (pprint @!symbol-table)

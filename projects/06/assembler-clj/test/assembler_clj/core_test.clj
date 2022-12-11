@@ -2,6 +2,6 @@
   (:require [clojure.test :refer :all]
             [assembler-clj.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
+(deftest test-assembler
+  (testing "Add.asm"
     (is (= 0 1))))
