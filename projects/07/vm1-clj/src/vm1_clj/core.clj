@@ -48,22 +48,23 @@
    ["@SP"
     "M=M-1"]))
 
-(defn inc-pointer [p-str]
+(defn inc-pointer [pointer-sym]
   (s/join
    "\n"
-   [(str "@" p-str)
+   [(str "@" pointer-sym)
     "M=M+1"]))
 
-(defn dec-pointer [p-str]
+(defn dec-pointer [pointer-sym]
   (s/join
    "\n"
-   [(str "@" p-str)
+   [(str "@" pointer-sym)
     "M=M-1"]))
 
 (def D=SP ;; D register = value at address pointed to by SP
   (s/join
    "\n"
    ["@SP"
+    "M=M-1"
     "A=M"
     "D=M"]))
 
@@ -112,6 +113,12 @@
                                {:label label
                                 :symbol symbol}))
 
+                SP 256
+                LCL 300
+                ARG 400
+                THIS 3000
+                THAT 3010
+                TEMP 5
 
                 ;; set sp 256,        // stack pointer
                 ;; set local 300,     // base address of the local segment
@@ -164,8 +171,6 @@
 
                                  ;; "@SP" ;; A = 0            ;; M[0] = 258
                                  ;; "M=M-1" ;; M[0] = M[0] -1 ;; M[0] = 257
-                                 dec-stack-pointer
-
                                  ;; "A=M" ;; A = M[0]         ;; A = 257
                                  ;; "D=M" ;; D = M[0]         ;; D = M[257]
                                  D=SP
@@ -174,7 +179,7 @@
                                  ;; "M=M-1" ;; M[0] = M[0]-1  ;; M[0] = 256
                                  dec-stack-pointer
 
-                                 "A=M" ;; A = M[0]         ;; A = 256
+                                 "A=M" ;; A = M[0]            ;; A = 256
                                  "M=M+D" ;; M[256]=M[256]+M[257]
 
                                  ;; "@SP"
@@ -183,8 +188,6 @@
 
                           "sub"
                           (swap! !out conj
-                                 dec-stack-pointer
-
                                  D=SP
 
                                  dec-stack-pointer
@@ -208,12 +211,6 @@
                           (let [{cond-sym :symbol cond-label :label} (new-label!)
                                 {end-sym :symbol end-label :label} (new-label!)]
                             (swap! !out conj
-                                   ;; where do i jump
-                                   ;; i keep a symbol string with a incrementing
-                                   ;; suffix
-                                   ;; (LABEL1)
-
-                                   dec-stack-pointer
 
                                    D=SP
 
@@ -221,6 +218,11 @@
 
                                    "A=M" ;; set A to the SP address
                                    "D=M-D"
+
+                                   ;; where do i jump?
+                                   ;; i keep a symbol string with a incrementing
+                                   ;; suffix
+                                   ;; (LABEL1)
                                    (str "@" cond-sym)
                                    "D;JEQ" ;; jump to the cond-label
 
@@ -244,13 +246,6 @@
                           (let [{cond-sym :symbol cond-label :label} (new-label!)
                                 {end-sym :symbol end-label :label} (new-label!)]
                             (swap! !out conj
-                                   ;; where do i jump
-                                   ;; i keep a symbol string with a incrementing
-                                   ;; suffix
-                                   ;; (LABEL1)
-
-                                   dec-stack-pointer
-
                                    D=SP
 
                                    dec-stack-pointer
@@ -280,13 +275,6 @@
                           (let [{cond-sym :symbol cond-label :label} (new-label!)
                                 {end-sym :symbol end-label :label} (new-label!)]
                             (swap! !out conj
-                                   ;; where do i jump
-                                   ;; i keep a symbol string with a incrementing
-                                   ;; suffix
-                                   ;; (LABEL1)
-
-                                   dec-stack-pointer
-
                                    D=SP
 
                                    dec-stack-pointer
@@ -314,8 +302,6 @@
 
                           "and"
                           (swap! !out conj
-                                 dec-stack-pointer
-
                                  D=SP
 
                                  dec-stack-pointer
@@ -328,8 +314,6 @@
 
                           "or"
                           (swap! !out conj
-                                 dec-stack-pointer
-
                                  D=SP
 
                                  dec-stack-pointer
@@ -355,13 +339,12 @@
                           ;; and that.
                           ;;
                           ;; 2. Next, handle the pointer and temp segments, in
-                          ;; particular allowing modiﬁca- tion of the bases of
+                          ;; particular allowing modiﬁcation of the bases of
                           ;; the this and that segments.
                           ;;
                           ;; 3. Finally, handle the static segment.
 
                           ;; push s i; push the value of s[i] onto the stack
-                          ;; pop  s i; pop top of stack and store into s[i]
                           "push"
                           (condp = seg
                             "constant"
@@ -380,22 +363,114 @@
                                    "@SP"
                                    "M=M+1")
 
+                            ;; TODO bugs here?
                             "local"
-                            (swap! !out conj)
+                            (swap! !out conj
+
+                                   (str "@" idx)
+                                   "D=A" ;; D = idx
+                                   "@LCL" ;; A = 300
+                                   "A=D+A" ;; A  = 300 + idx
+                                   "D=M" ;; D = M[300+idx]
+
+                                   "@SP" ;; A = 0
+                                   "A=M" ;; A = M[SP] ;; available stack address
+                                   "M=D" ;; M[A] = M[300+idx]
+
+                                   (inc-pointer "SP"))
 
                             "argument"
-                            (swap! !out conj)
+                            (swap! !out conj
+                                   (str "@" idx)
+                                   "D=A" ;; D = idx
+                                   "@ARG" ;; A = 400
+                                   "A=D+A" ;; A  = 400 + idx
+                                   "D=M" ;; D = M[400+idx]
+
+                                   "@SP" ;; A = 0
+                                   "A=M"
+                                   "M=D"
+
+                                   (inc-pointer "SP"))
 
                             "this"
-                            (swap! !out conj)
+                            (swap! !out conj
+                                   (str "@" idx)
+                                   "D=A"
+                                   "@THIS"
+                                   "A=D+A"
+                                   "D=M"
+
+                                   "@SP"
+                                   "A=M"
+                                   "M=D"
+
+                                   (inc-pointer "SP"))
 
                             "that"
-                            (swap! !out conj)
+                            (swap! !out conj
+                                   (str "@" idx)
+                                   "D=A"
+                                   "@THAT"
+                                   "A=D+A"
+                                   "D=M"
+
+                                   "@SP"
+                                   "A=M"
+                                   "M=D"
+
+                                   (inc-pointer "SP"))
+
+                            "temp"
+                            (swap! !out conj
+                                   (str "@" (+ TEMP idx))
+                                   "D=M"
+
+                                   "@SP"
+                                   "A=M"
+                                   "M=D"
+                                   (inc-pointer "SP"))
+
 
                             (println "ERROR: No matching push SEGMENT" seg))
 
+                          ;; pop  s i; pop top of stack and store into s[i]
                           "pop"
                           (condp = seg
+                            "local"
+                            (swap! !out conj
+                                   D=SP
+
+                                   (str "@" (+ LCL idx))
+                                   "M=D")
+
+                            "argument"
+                            (swap! !out conj
+                                   D=SP
+
+                                   (str "@" (+ ARG idx))
+                                   "M=D")
+
+                            "this"
+                            (swap! !out conj
+                                   D=SP
+
+                                   (str "@" (+ THIS idx))
+                                   "M=D")
+
+                            "that"
+                            (swap! !out conj
+                                   D=SP
+
+                                   (str "@" (+ THAT idx))
+                                   "M=D")
+
+                            "temp"
+                            (swap! !out conj
+                                   D=SP
+
+                                   (str "@" (+ TEMP idx))
+                                   "M=D")
 
                             (println "ERROR: No matching pop SEGMENT" seg))
 
