@@ -5,7 +5,7 @@
 
 // let's loop R1 times, adding R0 each time to sum
 
-    @i // i is some memory location, i assume it's deterministic,
+    @i // variables start at addresss 16 and increment from there
     M=1 //  i=1
     @sum // sum = 0
     M=0
