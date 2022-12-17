@@ -87,12 +87,13 @@
           !instruction-counter (atom 0)]
 
       (with-open [rdr (io/reader filepath)]
-        (let [lines ((comp
-                      (partial filterv not-empty) ;; remove empty strs
-                      (partial mapv s/trim) ;; trim first
-                      )
+        (let [lines (doall
+                     ((comp
+                       (partial filterv not-empty) ;; remove empty strs
+                       (partial mapv s/trim) ;; trim first
+                       )
 
-                     (line-seq rdr))]
+                      (line-seq rdr)))]
 
           ;; first pass generate symbol table
           (loop [i 0]
