@@ -346,133 +346,160 @@
 
                           ;; push s i; push the value of s[i] onto the stack
                           "push"
-                          (condp = seg
-                            "constant"
+                          (do
+                            (condp = seg
+                              "constant"
+                              (swap! !out conj
+                                     ;; put constant into D-register
+                                     (str "@" idx)
+                                     "D=A")
+
+                              "local"
+                              (swap! !out conj
+                                     (str "@" (+ LCL idx))
+                                     "D=M")
+
+                              "argument"
+                              (swap! !out conj
+                                     (str "@" (+ ARG idx))
+                                     "D=M")
+
+                              "this"
+                              (swap! !out conj
+                                     "@THIS"
+                                     "D=M" ;; THIS address
+                                     (str "@" idx)
+                                     "D=D+A"
+                                     "A=D" ;; A = THIS + idx
+
+                                     "D=M")
+
+                              "that"
+                              (swap! !out conj
+                                     "@THAT"
+                                     "D=M" ;; THIS address
+                                     (str "@" idx)
+                                     "D=D+A"
+                                     "A=D" ;; A = THIS + idx
+
+                                     "D=M")
+
+                              "temp"
+                              (swap! !out conj
+                                     (str "@" (+ TEMP idx))
+                                     "D=M")
+
+                              "pointer"
+                              (condp = idx
+                                0
+                                (swap! !out conj
+                                       "@THIS"
+                                       "D=M")
+
+                                1
+                                (swap! !out conj
+                                       "@THAT"
+                                       "D=M")
+
+                                :else
+                                (println "ERROR: pointer index must be 0 or 1."))
+
+                              "static"
+                              (swap! !out conj
+                                     (str "@" (+ 16 idx))
+                                     "D=M")
+
+                              (println "ERROR: No matching push SEGMENT" seg))
+
+                            ;; push onto stack
                             (swap! !out conj
-                                   ;; put constant into D-register
-                                   (str "@" idx)
-                                   "D=A"
 
-                                   ;; set value at the top of the stack to
-                                   ;; the constant
-                                   "@SP"
-                                   "A=M"
-                                   "M=D"
+                                     ;; set value at the top of the stack to
+                                     ;; the D-register value
+                                     "@SP"
+                                     "A=M"
+                                     "M=D"
 
-                                   ;; increment stack pointer
-                                   "@SP"
-                                   "M=M+1")
-
-                            ;; TODO bugs here?
-                            "local"
-                            (swap! !out conj
-
-                                   (str "@" idx)
-                                   "D=A" ;; D = idx
-                                   "@LCL" ;; A = 300
-                                   "A=D+A" ;; A  = 300 + idx
-                                   "D=M" ;; D = M[300+idx]
-
-                                   "@SP" ;; A = 0
-                                   "A=M" ;; A = M[SP] ;; available stack address
-                                   "M=D" ;; M[A] = M[300+idx]
-
-                                   (inc-pointer "SP"))
-
-                            "argument"
-                            (swap! !out conj
-                                   (str "@" idx)
-                                   "D=A" ;; D = idx
-                                   "@ARG" ;; A = 400
-                                   "A=D+A" ;; A  = 400 + idx
-                                   "D=M" ;; D = M[400+idx]
-
-                                   "@SP" ;; A = 0
-                                   "A=M"
-                                   "M=D"
-
-                                   (inc-pointer "SP"))
-
-                            "this"
-                            (swap! !out conj
-                                   (str "@" idx)
-                                   "D=A"
-                                   "@THIS"
-                                   "A=D+A"
-                                   "D=M"
-
-                                   "@SP"
-                                   "A=M"
-                                   "M=D"
-
-                                   (inc-pointer "SP"))
-
-                            "that"
-                            (swap! !out conj
-                                   (str "@" idx)
-                                   "D=A"
-                                   "@THAT"
-                                   "A=D+A"
-                                   "D=M"
-
-                                   "@SP"
-                                   "A=M"
-                                   "M=D"
-
-                                   (inc-pointer "SP"))
-
-                            "temp"
-                            (swap! !out conj
-                                   (str "@" (+ TEMP idx))
-                                   "D=M"
-
-                                   "@SP"
-                                   "A=M"
-                                   "M=D"
-                                   (inc-pointer "SP"))
-
-
-                            (println "ERROR: No matching push SEGMENT" seg))
+                                     ;; increment stack pointer
+                                     "@SP"
+                                     "M=M+1"))
 
                           ;; pop  s i; pop top of stack and store into s[i]
                           "pop"
-                          (condp = seg
-                            "local"
+                          (do
+                            ;; set Memory address
+                            (condp = seg
+                              "local"
+                              (swap! !out conj
+                                     D=SP
+                                     (str "@" (+ LCL idx)))
+
+                              "argument"
+                              (swap! !out conj
+                                     D=SP
+                                     (str "@" (+ ARG idx)))
+
+                              "this"
+                              (swap! !out conj
+                                     "@THIS"
+                                     "D=M" ;; THIS address
+                                     (str "@" idx)
+                                     "D=D+A"
+                                     "@R13"
+                                     "M=D" ;; R13 = THIS + idx
+
+                                     D=SP
+
+                                     "@R13"
+                                     "A=M" ;; A = THIS + idx
+                                     )
+
+                              "that"
+                              (swap! !out conj
+                                     "@THAT"
+                                     "D=M"
+                                     (str "@" idx)
+                                     "D=D+A"
+                                     "@R13"
+                                     "M=D" ;; R13 = THAT + idx
+
+                                     D=SP
+
+                                     "@R13"
+                                     "A=M" ;; A = THAT + idx
+                                     )
+
+                              "temp"
+                              (swap! !out conj
+                                     D=SP
+                                     (str "@" (+ TEMP idx)))
+
+                              "pointer"
+                              (condp = idx
+                                0
+                                (swap! !out conj
+                                       D=SP
+                                       "@THIS")
+
+                                1
+                                (swap! !out conj
+                                       D=SP
+                                       "@THAT")
+
+                                :else
+                                (println "ERROR: pointer index must be 0 or 1."))
+
+                              "static"
+                              (swap! !out conj
+                                     D=SP
+                                     (str "@" (+ 16 idx)))
+
+                              (println "ERROR: No matching pop SEGMENT" seg))
+
+
+                            ;; set value at memory address to D-register value
                             (swap! !out conj
-                                   D=SP
-
-                                   (str "@" (+ LCL idx))
-                                   "M=D")
-
-                            "argument"
-                            (swap! !out conj
-                                   D=SP
-
-                                   (str "@" (+ ARG idx))
-                                   "M=D")
-
-                            "this"
-                            (swap! !out conj
-                                   D=SP
-
-                                   (str "@" (+ THIS idx))
-                                   "M=D")
-
-                            "that"
-                            (swap! !out conj
-                                   D=SP
-
-                                   (str "@" (+ THAT idx))
-                                   "M=D")
-
-                            "temp"
-                            (swap! !out conj
-                                   D=SP
-
-                                   (str "@" (+ TEMP idx))
-                                   "M=D")
-
-                            (println "ERROR: No matching pop SEGMENT" seg))
+                                   "M=D"))
 
                           ;; comment
                           "//" nil
