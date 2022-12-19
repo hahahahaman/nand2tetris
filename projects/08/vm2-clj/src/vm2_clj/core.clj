@@ -4,6 +4,11 @@
             [clojure.pprint :refer [pprint]])
   (:gen-class))
 
+(defn get-file-extension
+  "File extension from the path string. Return value includes the period: .txt
+  https://rosettacode.org/wiki/Extract_file_extension#Clojure"
+  [path]
+  (second (re-find #"(\.[a-zA-Z0-9]+)$" path)))
 
 (comment
   (def symbol-address-table
@@ -31,11 +36,42 @@
      "SCREEN" 16384
      "KBD" 24576}))
 
-(defn get-file-extension
-  "File extension from the path string. Return value includes the period: .txt
-  https://rosettacode.org/wiki/Extract_file_extension#Clojure"
-  [path]
-  (second (re-find #"(\.[a-zA-Z0-9]+)$" path)))
+;; init addresses
+(def SP 256)
+(def LCL 300)
+(def ARG 400)
+(def THIS 3000)
+(def THAT 3010)
+(def TEMP 5)
+
+(def init-pointers-asm
+  ;; init stack pointer: M[0] = 256
+  (s/join
+   "\n"
+   ["@256" ;; SP 256
+    "D=A"
+    "@SP" ;; stack pointer, at address 0. set A=0
+    "M=D" ;; M[0]=256
+
+    "@300" ;; LCL 300
+    "D=A"
+    "@LCL"
+    "M=D"
+
+    "@400" ;; ARG 400
+    "D=A"
+    "@ARG"
+    "M=D"
+
+    "@3000" ;; THIS 3000
+    "D=A"
+    "@THIS"
+    "M=D"
+
+    "@3010" ;; THAT 4000
+    "D=A"
+    "@THAT"
+    "M=D"]))
 
 (def inc-stack-pointer
   (s/join
@@ -89,6 +125,448 @@
    [(str "@" v)
     "D=A"]))
 
+(defn write-file! [filename lines]
+  (println "Writing to:" filename)
+  (with-open [w (io/writer filename :append false)]
+    (doseq [l lines]
+      (.write w (str l "\n"))
+      ;; (println l)
+      )))
+
+(defn gen-stack-arithmetic-asm [op]
+  (condp = op
+    "add"
+    (s/join "\n"
+            [
+             ;; "@SP" ;; A = 0            ;; M[0] = 258
+             ;; "M=M-1" ;; M[0] = M[0] -1 ;; M[0] = 257
+             ;; "A=M" ;; A = M[0]         ;; A = 257
+             ;; "D=M" ;; D = M[0]         ;; D = M[257]
+             D=SP
+
+             ;; "@SP" ;; A = 0
+             ;; "M=M-1" ;; M[0] = M[0]-1  ;; M[0] = 256
+             dec-stack-pointer
+
+             "A=M" ;; A = M[0]            ;; A = 256
+             "M=M+D" ;; M[256]=M[256]+M[257]
+
+             ;; "@SP"
+             ;; "M=M+1" ;; M[0] = 257
+             inc-stack-pointer])
+
+    "sub"
+    (s/join "\n" [D=SP
+
+                  dec-stack-pointer
+
+                  "A=M"
+                  "M=M-D"
+
+                  inc-stack-pointer])
+
+    "neg"
+    (s/join "\n" [dec-stack-pointer
+
+                  "A=M"
+                  "M=-M"
+
+                  inc-stack-pointer])
+
+    "and"
+    (s/join "\n"
+            [D=SP
+
+             dec-stack-pointer
+
+             "A=M"
+             "M=M&D"
+
+
+             inc-stack-pointer])
+
+    "or"
+    (s/join "\n" [D=SP
+
+                  dec-stack-pointer
+
+                  "A=M"
+                  "M=M|D"
+
+                  inc-stack-pointer])
+
+    "not"
+    (s/join "\n" [dec-stack-pointer
+
+                  "A=M"
+                  "M=!M"
+
+                  inc-stack-pointer])))
+
+(defn gen-comparison-asm! [op new-label!]
+  (condp = op
+    "eq"
+    ;; -1 is true, 0 is false
+    (let [{cond-sym :symbol cond-label :label} (new-label!)
+          {end-sym :symbol end-label :label} (new-label!)]
+      (s/join "\n" [D=SP
+
+                    dec-stack-pointer
+
+                    "A=M" ;; set A to the SP address
+                    "D=M-D"
+
+                    ;; where do i jump?
+                    ;; i keep a symbol string with a incrementing
+                    ;; suffix
+                    ;; (LABEL1)
+                    (str "@" cond-sym)
+                    "D;JEQ" ;; jump to the cond-label
+
+                    ;; false, set M[SP]=0
+                    "@SP"
+                    "A=M"
+                    "M=0"
+                    (str "@" end-sym)
+                    "0;JMP"
+
+                    ;; set SP to -1
+                    cond-label
+                    "@SP"
+                    "A=M"
+                    "M=-1"
+
+                    end-label
+                    inc-stack-pointer]))
+
+    "gt"
+    (let [{cond-sym :symbol cond-label :label} (new-label!)
+          {end-sym :symbol end-label :label} (new-label!)]
+      (s/join "\n" [D=SP
+
+                    dec-stack-pointer
+
+                    "A=M" ;; set A to the SP address
+                    "D=M-D"
+                    (str "@" cond-sym)
+                    "D;JGT" ;; jump to the cond-label
+
+                    ;; false, set M[SP]=0
+                    "@SP"
+                    "A=M"
+                    "M=0"
+                    (str "@" end-sym)
+                    "0;JMP"
+
+                    ;; set SP to -1
+                    cond-label
+                    "@SP"
+                    "A=M"
+                    "M=-1"
+
+                    end-label
+                    inc-stack-pointer]))
+
+    "lt"
+    (let [{cond-sym :symbol cond-label :label} (new-label!)
+          {end-sym :symbol end-label :label} (new-label!)]
+      (s/join "\n" [D=SP
+
+                    dec-stack-pointer
+
+                    "A=M" ;; set A to the SP address
+                    "D=M-D"
+                    (str "@" cond-sym)
+                    "D;JLT" ;; jump to the cond-label
+
+                    ;; false, set M[SP]=0
+                    "@SP"
+                    "A=M"
+                    "M=0"
+                    (str "@" end-sym)
+                    "0;JMP"
+
+                    ;; set SP to -1
+                    cond-label
+                    "@SP"
+                    "A=M"
+                    "M=-1"
+
+                    end-label
+                    inc-stack-pointer]))))
+
+(defn gen-memory-access-asm [op seg idx]
+  (condp = op
+
+    ;; push s i; push the value of s[i] onto the stack
+    "push"
+    (str
+
+     ;; first set the D-register to the value of s[i]
+     (condp = seg
+       "constant"
+       (s/join
+        "\n"
+        [(str "@" idx) ;; put constant into D-register
+         "D=A"])
+
+       "local"
+       (s/join
+        "\n"
+        [(str "@" (+ LCL idx))
+         "D=M"])
+
+       "argument"
+       (s/join "\n" [(str "@" (+ ARG idx))
+                     "D=M"])
+
+       "this"
+       (s/join "\n" ["@THIS"
+                     "D=M" ;; THIS address
+                     (str "@" idx)
+                     "D=D+A"
+                     "A=D" ;; A = THIS + idx
+
+                     "D=M"])
+
+       "that"
+       (s/join "\n" ["@THAT"
+                     "D=M" ;; THIS address
+                     (str "@" idx)
+                     "D=D+A"
+                     "A=D" ;; A = THIS + idx
+
+                     "D=M"])
+
+       "temp"
+       (s/join "\n" [(str "@" (+ TEMP idx))
+                     "D=M"])
+
+       "pointer"
+       (condp = idx
+         0
+         (s/join
+          "\n"
+          ["@THIS"
+           "D=M"])
+
+         1
+         (s/join
+          "\n"
+          ["@THAT"
+           "D=M"])
+
+         :else
+         (println "ERROR: pointer index must be 0 or 1."))
+
+       "static"
+       (s/join
+        "\n"
+        [(str "@" (+ 16 idx))
+         "D=M"])
+
+       (println "ERROR: No matching push SEGMENT" seg))
+
+     "\n"
+
+     ;; second push onto stack
+     (s/join
+      "\n"
+      [;; set value at the top of the stack to the in D-register value
+       "@SP"
+       "A=M"
+       "M=D"
+
+       ;; increment stack pointer
+       "@SP"
+       "M=M+1"]))
+
+    ;; pop  s i; pop top of stack and store into s[i]
+    "pop"
+    (str
+
+     ;; first get the address of s[i]
+     ;; D=SP pops top of stack and places the value in D-register
+     (condp = seg
+       "local"
+       (s/join "\n" [D=SP
+                     (str "@" (+ LCL idx))])
+
+       "argument"
+       (s/join "\n" [D=SP
+                     (str "@" (+ ARG idx))])
+
+       "this"
+       (s/join
+        "\n"
+        ;; use R13 to store the memory address of s[i]
+        ;; pointer can change the the value of THIS at runtime
+        ["@THIS"
+         "D=M" ;; THIS address
+         (str "@" idx)
+         "D=D+A"
+         "@R13"
+         "M=D" ;; R13 = THIS + idx
+
+         D=SP
+
+         "@R13"
+         "A=M" ;; A = THIS + idx
+         ])
+
+       "that"
+       (s/join "\n" ["@THAT"
+                     "D=M"
+                     (str "@" idx)
+                     "D=D+A"
+                     "@R13"
+                     "M=D" ;; R13 = THAT + idx
+
+                     D=SP
+
+                     "@R13"
+                     "A=M" ;; A = THAT + idx
+                     ])
+
+       "temp"
+       (s/join "\n" [D=SP
+                     (str "@" (+ TEMP idx))])
+
+       "pointer"
+       (condp = idx
+         0
+         (s/join "\n" [D=SP
+                       "@THIS"])
+
+         1
+         (s/join "\n" [D=SP
+                       "@THAT"])
+
+         :else
+         (println "ERROR: pointer index must be 0 or 1."))
+
+       "static"
+       (s/join "\n" [D=SP
+                     (str "@" (+ 16 idx))])
+
+       (println "ERROR: No matching pop SEGMENT" seg))
+
+     "\n"
+
+     ;; second set value at memory address to D-register value
+     "M=D"
+     )))
+
+(defn gen-program-flow-asm [op seg idx]
+  (condp = op
+
+    "label"
+    (s/join "\n" [(str "(" seg ")")])
+
+    "goto"
+    (s/join "\n" [(str "@" seg)
+                  "0;JMP"])
+
+    "if-goto"
+    (s/join "\n" [D=SP ;; pop top of stack
+                  (str "@" seg)
+                  "D;JNE" ;; jump if stack value != 0
+                  ])
+
+    "return"
+    (s/join "\n" [;; TODO
+                  "0;JMP"])
+    ))
+
+(defn gen-function-calling-asm [op seg idx]
+
+  (condp = op
+    "function"
+    (s/join "\n" [
+                  ;;TODO
+                  ])
+
+    "call"
+    (s/join "\n" [
+                  ;;TODO
+                  ])))
+
+(defn translate-vm-file! [file]
+  (let [vm-label "VMLABEL"
+        !label-counter (atom 0)
+        new-label! (fn []
+                     (let [symbol (str vm-label @!label-counter)
+                           label (str "(" symbol ")")]
+                       (swap! !label-counter inc)
+                       {:label label
+                        :symbol symbol}))
+
+        !out (atom [init-pointers-asm])
+        lines (with-open [rdr (io/reader file)]
+                (doall (mapv s/trim (line-seq rdr))))]
+    (loop [i 0]
+      (when (< i (count lines))
+        (let [line (nth lines i)
+              [op seg idx-str] (s/split line #"\s")
+              idx (when idx-str (parse-long idx-str))
+              asm (cond
+                    (contains? #{"add" "sub" "neg" "and" "or" "not"} op)
+                    (gen-stack-arithmetic-asm op)
+
+                    (contains? #{"eq" "gt" "lt"} op)
+                    (gen-comparison-asm! op new-label!)
+
+                    (contains? #{"push" "pop"} op)
+                    (gen-memory-access-asm op seg idx)
+
+                    (contains? #{"label" "goto" "if-goto" "return"} op)
+                    (gen-program-flow-asm op seg idx)
+
+                    ;; comment or empty
+                    (or (= op "") (= op "//" )) nil
+
+                    :else
+                    (println "Line" (inc i)
+                             ". ERROR: No matching operation"
+                             op))]
+
+          (when asm (swap! !out conj asm)))
+
+        (recur (inc i))))
+    (let [filepath (.getPath file)
+          asm-filename (str (subs filepath 0 (- (count filepath)
+                                                (count ".vm")))
+                            ".asm")]
+      (write-file! asm-filename @!out))))
+
+(defn translate-files! [path files]
+  (doseq [file files]
+    (let [file? (.isFile file)
+          extension (get-file-extension (.getName file))]
+      (if (not file?)
+        (println "Skipping" path "not a file.")
+
+        (if (not= extension ".vm")
+          (println "Skipping" path "not a .vm file.")
+
+          (translate-vm-file! file))))))
+
+(defn usage []
+  (println
+   (->>
+    ["vm1-clj - VM-to-Hack Translator Part 1"
+
+     "Translate stack arithmetic and memory access commands of the VM language
+       to the Hack assembly"
+
+     "---Chapter 7 project for Elements of Computing Systems---"
+
+     ""
+
+     "Usage:"
+     " VMtranslator Prog.vm"]
+    (s/join \newline))))
+
 (defn -main [& args]
   (cond
     ;; go through each line of the .vm file and out the corresponding assembly
@@ -97,479 +575,11 @@
     (let [path (io/file (s/trim (nth args 0)))
           exists? (.exists path)
           dir? (.isDirectory path)
-          files (if dir? (vec (file-seq path)) [path])
-          !stack (atom [])]
+          files (if dir? (vec (file-seq path)) [path])]
       (if (not exists?)
         (println "ERROR:" path " does not exist!")
 
-        (doseq [file files]
-          (let [file? (.isFile file)
-                extension (get-file-extension (.getName file))
-                !label-counter (atom 0)
-                vm-label "VMLABEL"
-                new-label! (fn []
-                             (let [symbol (str vm-label @!label-counter)
-                                   label (str "(" symbol ")")]
-                               (swap! !label-counter inc)
-                               {:label label
-                                :symbol symbol}))
-
-                SP 256
-                LCL 300
-                ARG 400
-                THIS 3000
-                THAT 3010
-                TEMP 5
-
-                ;; set sp 256,        // stack pointer
-                ;; set local 300,     // base address of the local segment
-                ;; set argument 400,  // base address of the argument segment
-                ;; set this 3000,     // base address of the this segment
-                ;; set that 3010,     // base address of the that segment
-                !out (atom
-                      ;; init stack pointer: M[0] = 256
-                      ["@256" ;; SP 256
-                       "D=A"
-                       "@SP" ;; stack pointer, at address 0. set A=0
-                       "M=D" ;; M[0]=256
-
-                       "@300" ;; LCL 300
-                       "D=A"
-                       "@LCL"
-                       "M=D"
-
-                       "@400" ;; ARG 400
-                       "D=A"
-                       "@ARG"
-                       "M=D"
-
-                       "@3000" ;; THIS 3000
-                       "D=A"
-                       "@THIS"
-                       "M=D"
-
-                       "@3010" ;; THAT 4000
-                       "D=A"
-                       "@THAT"
-                       "M=D"]
-
-                      )]
-            (if file?
-              (if (= extension ".vm")
-                (let [lines (with-open [rdr (io/reader file)]
-                              (doall (mapv s/trim (line-seq rdr))))]
-                  (loop [i 0]
-                    (when (< i (count lines))
-                      (let [line (nth lines i)
-                            [op seg idx-str] (s/split line #" ")
-                            idx (when idx-str (parse-long idx-str))]
-
-                        ;; stack arithmetic commands
-                        ;; memory access commands
-                        (condp = op
-                          "add"
-                          (swap! !out conj
-
-                                 ;; "@SP" ;; A = 0            ;; M[0] = 258
-                                 ;; "M=M-1" ;; M[0] = M[0] -1 ;; M[0] = 257
-                                 ;; "A=M" ;; A = M[0]         ;; A = 257
-                                 ;; "D=M" ;; D = M[0]         ;; D = M[257]
-                                 D=SP
-
-                                 ;; "@SP" ;; A = 0
-                                 ;; "M=M-1" ;; M[0] = M[0]-1  ;; M[0] = 256
-                                 dec-stack-pointer
-
-                                 "A=M" ;; A = M[0]            ;; A = 256
-                                 "M=M+D" ;; M[256]=M[256]+M[257]
-
-                                 ;; "@SP"
-                                 ;; "M=M+1" ;; M[0] = 257
-                                 inc-stack-pointer)
-
-                          "sub"
-                          (swap! !out conj
-                                 D=SP
-
-                                 dec-stack-pointer
-
-                                 "A=M"
-                                 "M=M-D"
-
-                                 inc-stack-pointer)
-
-                          "neg"
-                          (swap! !out conj
-                                 dec-stack-pointer
-
-                                 "A=M"
-                                 "M=-M"
-
-                                 inc-stack-pointer)
-
-                          "eq"
-                          ;; -1 is true, 0 is false
-                          (let [{cond-sym :symbol cond-label :label} (new-label!)
-                                {end-sym :symbol end-label :label} (new-label!)]
-                            (swap! !out conj
-
-                                   D=SP
-
-                                   dec-stack-pointer
-
-                                   "A=M" ;; set A to the SP address
-                                   "D=M-D"
-
-                                   ;; where do i jump?
-                                   ;; i keep a symbol string with a incrementing
-                                   ;; suffix
-                                   ;; (LABEL1)
-                                   (str "@" cond-sym)
-                                   "D;JEQ" ;; jump to the cond-label
-
-                                   ;; false, set M[SP]=0
-                                   "@SP"
-                                   "A=M"
-                                   "M=0"
-                                   (str "@" end-sym)
-                                   "0;JMP"
-
-                                   ;; set SP to -1
-                                   cond-label
-                                   "@SP"
-                                   "A=M"
-                                   "M=-1"
-
-                                   end-label
-                                   inc-stack-pointer))
-
-                          "gt"
-                          (let [{cond-sym :symbol cond-label :label} (new-label!)
-                                {end-sym :symbol end-label :label} (new-label!)]
-                            (swap! !out conj
-                                   D=SP
-
-                                   dec-stack-pointer
-
-                                   "A=M" ;; set A to the SP address
-                                   "D=M-D"
-                                   (str "@" cond-sym)
-                                   "D;JGT" ;; jump to the cond-label
-
-                                   ;; false, set M[SP]=0
-                                   "@SP"
-                                   "A=M"
-                                   "M=0"
-                                   (str "@" end-sym)
-                                   "0;JMP"
-
-                                   ;; set SP to -1
-                                   cond-label
-                                   "@SP"
-                                   "A=M"
-                                   "M=-1"
-
-                                   end-label
-                                   inc-stack-pointer))
-
-                          "lt"
-                          (let [{cond-sym :symbol cond-label :label} (new-label!)
-                                {end-sym :symbol end-label :label} (new-label!)]
-                            (swap! !out conj
-                                   D=SP
-
-                                   dec-stack-pointer
-
-                                   "A=M" ;; set A to the SP address
-                                   "D=M-D"
-                                   (str "@" cond-sym)
-                                   "D;JLT" ;; jump to the cond-label
-
-                                   ;; false, set M[SP]=0
-                                   "@SP"
-                                   "A=M"
-                                   "M=0"
-                                   (str "@" end-sym)
-                                   "0;JMP"
-
-                                   ;; set SP to -1
-                                   cond-label
-                                   "@SP"
-                                   "A=M"
-                                   "M=-1"
-
-                                   end-label
-                                   inc-stack-pointer))
-
-                          "and"
-                          (swap! !out conj
-                                 D=SP
-
-                                 dec-stack-pointer
-
-                                 "A=M"
-                                 "M=M&D"
-
-
-                                 inc-stack-pointer)
-
-                          "or"
-                          (swap! !out conj
-                                 D=SP
-
-                                 dec-stack-pointer
-
-                                 "A=M"
-                                 "M=M|D"
-
-                                 inc-stack-pointer)
-
-                          "not"
-                          (swap! !out conj
-                                 dec-stack-pointer
-
-                                 "A=M"
-                                 "M=!M"
-
-                                 inc-stack-pointer)
-
-
-                          ;; 0. You have already handled the constant segment.
-                          ;;
-                          ;; 1. Next, handle the segments local, argument, this,
-                          ;; and that.
-                          ;;
-                          ;; 2. Next, handle the pointer and temp segments, in
-                          ;; particular allowing modiﬁcation of the bases of
-                          ;; the this and that segments.
-                          ;;
-                          ;; 3. Finally, handle the static segment.
-
-                          ;; push s i; push the value of s[i] onto the stack
-                          "push"
-                          (do
-                            (condp = seg
-                              "constant"
-                              (swap! !out conj
-                                     ;; put constant into D-register
-                                     (str "@" idx)
-                                     "D=A")
-
-                              "local"
-                              (swap! !out conj
-                                     (str "@" (+ LCL idx))
-                                     "D=M")
-
-                              "argument"
-                              (swap! !out conj
-                                     (str "@" (+ ARG idx))
-                                     "D=M")
-
-                              "this"
-                              (swap! !out conj
-                                     "@THIS"
-                                     "D=M" ;; THIS address
-                                     (str "@" idx)
-                                     "D=D+A"
-                                     "A=D" ;; A = THIS + idx
-
-                                     "D=M")
-
-                              "that"
-                              (swap! !out conj
-                                     "@THAT"
-                                     "D=M" ;; THIS address
-                                     (str "@" idx)
-                                     "D=D+A"
-                                     "A=D" ;; A = THIS + idx
-
-                                     "D=M")
-
-                              "temp"
-                              (swap! !out conj
-                                     (str "@" (+ TEMP idx))
-                                     "D=M")
-
-                              "pointer"
-                              (condp = idx
-                                0
-                                (swap! !out conj
-                                       "@THIS"
-                                       "D=M")
-
-                                1
-                                (swap! !out conj
-                                       "@THAT"
-                                       "D=M")
-
-                                :else
-                                (println "ERROR: pointer index must be 0 or 1."))
-
-                              "static"
-                              (swap! !out conj
-                                     (str "@" (+ 16 idx))
-                                     "D=M")
-
-                              (println "ERROR: No matching push SEGMENT" seg))
-
-                            ;; push onto stack
-                            (swap! !out conj
-
-                                     ;; set value at the top of the stack to
-                                     ;; the D-register value
-                                     "@SP"
-                                     "A=M"
-                                     "M=D"
-
-                                     ;; increment stack pointer
-                                     "@SP"
-                                     "M=M+1"))
-
-                          ;; pop  s i; pop top of stack and store into s[i]
-                          "pop"
-                          (do
-                            ;; set Memory address
-                            (condp = seg
-                              "local"
-                              (swap! !out conj
-                                     D=SP
-                                     (str "@" (+ LCL idx)))
-
-                              "argument"
-                              (swap! !out conj
-                                     D=SP
-                                     (str "@" (+ ARG idx)))
-
-                              "this"
-                              (swap! !out conj
-                                     "@THIS"
-                                     "D=M" ;; THIS address
-                                     (str "@" idx)
-                                     "D=D+A"
-                                     "@R13"
-                                     "M=D" ;; R13 = THIS + idx
-
-                                     D=SP
-
-                                     "@R13"
-                                     "A=M" ;; A = THIS + idx
-                                     )
-
-                              "that"
-                              (swap! !out conj
-                                     "@THAT"
-                                     "D=M"
-                                     (str "@" idx)
-                                     "D=D+A"
-                                     "@R13"
-                                     "M=D" ;; R13 = THAT + idx
-
-                                     D=SP
-
-                                     "@R13"
-                                     "A=M" ;; A = THAT + idx
-                                     )
-
-                              "temp"
-                              (swap! !out conj
-                                     D=SP
-                                     (str "@" (+ TEMP idx)))
-
-                              "pointer"
-                              (condp = idx
-                                0
-                                (swap! !out conj
-                                       D=SP
-                                       "@THIS")
-
-                                1
-                                (swap! !out conj
-                                       D=SP
-                                       "@THAT")
-
-                                :else
-                                (println "ERROR: pointer index must be 0 or 1."))
-
-                              "static"
-                              (swap! !out conj
-                                     D=SP
-                                     (str "@" (+ 16 idx)))
-
-                              (println "ERROR: No matching pop SEGMENT" seg))
-
-
-                            ;; set value at memory address to D-register value
-                            (swap! !out conj
-                                   "M=D"))
-
-                          "label"
-                          (swap! !out conj
-                                 (str "(" seg ")"))
-
-                          "if-goto"
-                          (swap! !out conj
-                                 (str "@" seg)
-                                 ;; TODO how do i check this jump
-                                 "0;JMP")
-
-                          "goto"
-                          (swap! !out conj
-                                 ;; TODO
-                                 (str "@" seg)
-                                 "0;JMP")
-
-                          "return"
-                          (swap! !out conj
-                                 ;; TODO
-                                 "0;JMP")
-
-                          "function"
-                          (swap! !out conj
-                                 ;;TODO
-                                 )
-
-                          "call"
-                          (swap! !out conj
-                                 ;;TODO
-                                 )
-                          ;; comment
-                          "//" nil
-
-                          ;; empty
-                          "" nil
-
-                          (println "Line" (inc i)
-                                   ". ERROR: No matching operation"
-                                   op)))
-                      (recur (inc i))))
-                  (let [filepath (.getPath file)
-                        asm-filename (str (subs filepath 0 (- (count filepath)
-                                                              (count ".vm")))
-                                          ".asm")]
-                    (println "Writing to:" asm-filename)
-                    (with-open [w (io/writer asm-filename :append false)]
-                      (doseq [s @!out]
-                        (.write w (str s "\n"))
-                        ;; (println s)
-                        ))))
-
-                (println "Skipping" path "not a .vm file."))
-              (println "Skipping" path "not a file."))))))
+        (translate-files! path files)))
 
     :else
-    (println
-     (->>
-      ["vm1-clj - VM-to-Hack Translator Part 1"
-
-       "Translate stack arithmetic and memory access commands of the VM language
-       to the Hack assembly"
-
-       "---Chapter 7 project for Elements of Computing Systems---"
-
-       ""
-
-       "Usage:"
-       " VMtranslator Prog.vm"]
-      (s/join \newline)))
-    )
-  )
+    (usage)))
