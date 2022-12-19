@@ -459,7 +459,6 @@
 
 (defn gen-program-flow-asm [op seg idx]
   (condp = op
-
     "label"
     (s/join "\n" [(str "(" seg ")")])
 
@@ -479,7 +478,6 @@
     ))
 
 (defn gen-function-calling-asm [op seg idx]
-
   (condp = op
     "function"
     (s/join "\n" [
