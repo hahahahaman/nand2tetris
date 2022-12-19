@@ -295,7 +295,7 @@
                     end-label
                     inc-stack-pointer]))))
 
-(defn gen-memory-access-asm [op seg idx]
+(defn gen-memory-access-asm [op seg idx filename]
   (condp = op
 
     ;; push s i; push the value of s[i] onto the stack
@@ -362,7 +362,7 @@
        "static"
        (s/join
         "\n"
-        [(str "@" (+ 16 idx))
+        [(str "@" filename "." idx)
          "D=M"])
 
        (println "ERROR: No matching push SEGMENT" seg))
@@ -447,7 +447,7 @@
 
        "static"
        (s/join "\n" [D=SP
-                     (str "@" (+ 16 idx))])
+                     (str "@" filename "." idx)])
 
        (println "ERROR: No matching pop SEGMENT" seg))
 
@@ -490,7 +490,14 @@
                   ])))
 
 (defn translate-vm-file! [file]
-  (let [vm-label "VMLABEL"
+  (let [filepath (.getPath file)
+        filename (.getName file)
+        filename-without-ext (subs filename 0 (- (count filename)
+                                                 (count ".vm")))
+        asm-filepath (str (subs filepath 0 (- (count filepath)
+                                              (count ".vm")))
+                          ".asm")
+        vm-label "VMLABEL"
         !label-counter (atom 0)
         new-label! (fn []
                      (let [symbol (str vm-label @!label-counter)
@@ -515,7 +522,7 @@
                     (gen-comparison-asm! op new-label!)
 
                     (contains? #{"push" "pop"} op)
-                    (gen-memory-access-asm op seg idx)
+                    (gen-memory-access-asm op seg idx filename-without-ext)
 
                     (contains? #{"label" "goto" "if-goto" "return"} op)
                     (gen-program-flow-asm op seg idx)
@@ -531,11 +538,8 @@
           (when asm (swap! !out conj asm)))
 
         (recur (inc i))))
-    (let [filepath (.getPath file)
-          asm-filename (str (subs filepath 0 (- (count filepath)
-                                                (count ".vm")))
-                            ".asm")]
-      (write-file! asm-filename @!out))))
+
+    (write-file! asm-filepath @!out)))
 
 (defn translate-files! [path files]
   (doseq [file files]
