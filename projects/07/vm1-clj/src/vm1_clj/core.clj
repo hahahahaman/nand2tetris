@@ -31,6 +31,43 @@
     "SCREEN" 16384
     "KBD" 24576}))
 
+;; init addresses
+(def SP 256)
+(def LCL 300)
+(def ARG 400)
+(def THIS 3000)
+(def THAT 3010)
+(def TEMP 5)
+
+(def init-pointers-asm
+  ;; init stack pointer: M[0] = 256
+  (s/join
+   "\n"
+   ["@256" ;; SP 256
+    "D=A"
+    "@SP" ;; stack pointer, at address 0. set A=0
+    "M=D" ;; M[0]=256
+
+    "@300" ;; LCL 300
+    "D=A"
+    "@LCL"
+    "M=D"
+
+    "@400" ;; ARG 400
+    "D=A"
+    "@ARG"
+    "M=D"
+
+    "@3000" ;; THIS 3000
+    "D=A"
+    "@THIS"
+    "M=D"
+
+    "@3010" ;; THAT 4000
+    "D=A"
+    "@THAT"
+    "M=D"]))
+
 (defn get-file-extension
   "File extension from the path string. Return value includes the period: .txt
   https://rosettacode.org/wiki/Extract_file_extension#Clojure"
@@ -105,6 +142,13 @@
         (doseq [file files]
           (let [file? (.isFile file)
                 extension (get-file-extension (.getName file))
+                filepath (.getPath file)
+                filename (.getName file)
+                filename-without-ext (subs filepath 0 (- (count filename)
+                                                         (count ".vm")))
+                asm-filepath (str (subs filepath 0 (- (count filepath)
+                                                      (count ".vm")))
+                                          ".asm")
                 !label-counter (atom 0)
                 vm-label "VMLABEL"
                 new-label! (fn []
@@ -114,46 +158,7 @@
                                {:label label
                                 :symbol symbol}))
 
-                SP 256
-                LCL 300
-                ARG 400
-                THIS 3000
-                THAT 3010
-                TEMP 5
-
-                ;; set sp 256,        // stack pointer
-                ;; set local 300,     // base address of the local segment
-                ;; set argument 400,  // base address of the argument segment
-                ;; set this 3000,     // base address of the this segment
-                ;; set that 3010,     // base address of the that segment
-                !out (atom
-                      ;; init stack pointer: M[0] = 256
-                      ["@256" ;; SP 256
-                       "D=A"
-                       "@SP" ;; stack pointer, at address 0. set A=0
-                       "M=D" ;; M[0]=256
-
-                       "@300" ;; LCL 300
-                       "D=A"
-                       "@LCL"
-                       "M=D"
-
-                       "@400" ;; ARG 400
-                       "D=A"
-                       "@ARG"
-                       "M=D"
-
-                       "@3000" ;; THIS 3000
-                       "D=A"
-                       "@THIS"
-                       "M=D"
-
-                       "@3010" ;; THAT 4000
-                       "D=A"
-                       "@THAT"
-                       "M=D"]
-
-                      )]
+                !out (atom [init-pointers-asm])]
             (if file?
               (if (= extension ".vm")
                 (let [lines (with-open [rdr (io/reader file)]
@@ -407,7 +412,7 @@
 
                               "static"
                               (swap! !out conj
-                                     (str "@" (+ 16 idx))
+                                     (str "@" filename-without-ext "." idx)
                                      "D=M")
 
                               (println "ERROR: No matching push SEGMENT" seg))
@@ -493,7 +498,7 @@
                               "static"
                               (swap! !out conj
                                      D=SP
-                                     (str "@" (+ 16 idx)))
+                                     (str "@" filename-without-ext "." idx))
 
                               (println "ERROR: No matching pop SEGMENT" seg))
 
@@ -512,12 +517,9 @@
                                    ". ERROR: No matching operation"
                                    op)))
                       (recur (inc i))))
-                  (let [filepath (.getPath file)
-                        asm-filename (str (subs filepath 0 (- (count filepath)
-                                                              (count ".vm")))
-                                          ".asm")]
-                    (println "Writing to:" asm-filename)
-                    (with-open [w (io/writer asm-filename :append false)]
+                  (let []
+                    (println "Writing to:" asm-filepath)
+                    (with-open [w (io/writer asm-filepath :append false)]
                       (doseq [s @!out]
                         (.write w (str s "\n"))
                         ;; (println s)
