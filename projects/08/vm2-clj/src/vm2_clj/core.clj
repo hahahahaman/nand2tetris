@@ -669,8 +669,6 @@
       "@ARG"
       "M=D"   ;; THAT = *(FRAME-3)
 
-
-      ;; TODO this is where it's fucked i believe. the final M[1] wrong
       ;; LCL = *(FRAME-4)
       "@R14"
       "D=M"   ;; D = FRAME
