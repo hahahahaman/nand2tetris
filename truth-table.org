@@ -57,7 +57,7 @@ a and c-bits:
 | D or A |  0 |  1 |  0 |  1 |  0 |  1 | D or M |   |
 
 
-destination:
+destination to store the computation:
 
 | d1 | d2 | d3 | mneumonic | Destination |
 |----+----+----+-----------+-------------|
@@ -70,7 +70,7 @@ destination:
 |  1 |  1 |  0 | AD        |             |
 |  1 |  1 |  1 | AMD       |             |
 
-jump:
+jump to the memory address stored in the A-register if a condition is met:
 
 | j1 | j2 | j3 | mneumonic | effect           |
 |----+----+----+-----------+------------------|
