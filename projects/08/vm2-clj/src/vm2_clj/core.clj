@@ -109,15 +109,18 @@
 ;;
 ;; dereferencing the pointer, using C * notation:
 ;; *SP ;; == M[M[0]]
-;;
+
+;; D = pop stack
 (def D=*SP ;; D register = *SP
   (s/join
    "\n"
    ["@SP"
-    "M=M-1"
-    "A=M"
-    "D=M"]))
+    "M=M-1" ;; dec stack pointer, SP -= 1
+    "A=M"   ;; A = SP-1,
+    "D=M"   ;; D = M[SP-1], which is the value at the top of the stack
+    ]))
 
+;; push D onto stack
 (def *SP=D ;;  *SP = D register
   (s/join
    "\n"
@@ -130,6 +133,7 @@
     "@SP"
     "M=M+1"]))
 
+;; push 0 onto the stack
 (def *SP=0 ;; *SP = 0
   (s/join
    "\n"
@@ -140,19 +144,6 @@
     ;; increment stack pointer
     "@SP"
     "M=M+1"]))
-
-(def *SP+=D
-  (s/join
-   "\n"
-   ["@SP"
-    "A=M"
-    "M=M+D"]))
-
-(defn D=v [v]
-  (s/join
-   "\n"
-   [(str "@" v)
-    "D=A"]))
 
 (defn write-file! [filename lines]
   (println "Writing to:" filename)
@@ -271,58 +262,62 @@
     "gt"
     (let [{cond-sym :symbol cond-label :label} (new-label!)
           {end-sym :symbol end-label :label} (new-label!)]
-      (s/join "\n" [D=*SP
+      (s/join
+       "\n"
+       [D=*SP
 
-                    dec-SP
+        dec-SP
 
-                    "A=M" ;; set A to the SP address
-                    "D=M-D"
-                    (str "@" cond-sym)
-                    "D;JGT" ;; jump to the cond-label
+        "A=M" ;; set A to the SP address
+        "D=M-D"
+        (str "@" cond-sym)
+        "D;JGT" ;; jump to the cond-label
 
-                    ;; false, set M[SP]=0
-                    "@SP"
-                    "A=M"
-                    "M=0"
-                    (str "@" end-sym)
-                    "0;JMP"
+        ;; false, set M[SP]=0
+        "@SP"
+        "A=M"
+        "M=0"
+        (str "@" end-sym)
+        "0;JMP"
 
-                    ;; set SP to -1
-                    cond-label
-                    "@SP"
-                    "A=M"
-                    "M=-1"
+        ;; set SP to -1
+        cond-label
+        "@SP"
+        "A=M"
+        "M=-1"
 
-                    end-label
-                    inc-SP]))
+        end-label
+        inc-SP]))
 
     "lt"
     (let [{cond-sym :symbol cond-label :label} (new-label!)
           {end-sym :symbol end-label :label} (new-label!)]
-      (s/join "\n" [D=*SP
+      (s/join
+       "\n"
+       [D=*SP
 
-                    dec-SP
+        dec-SP
 
-                    "A=M" ;; set A to the SP address
-                    "D=M-D"
-                    (str "@" cond-sym)
-                    "D;JLT" ;; jump to the cond-label
+        "A=M" ;; set A to the SP address
+        "D=M-D"
+        (str "@" cond-sym)
+        "D;JLT" ;; jump to the cond-label
 
-                    ;; false, set M[SP]=0
-                    "@SP"
-                    "A=M"
-                    "M=0"
-                    (str "@" end-sym)
-                    "0;JMP"
+        ;; false, set M[SP]=0
+        "@SP"
+        "A=M"
+        "M=0"
+        (str "@" end-sym)
+        "0;JMP"
 
-                    ;; set SP to -1
-                    cond-label
-                    "@SP"
-                    "A=M"
-                    "M=-1"
+        ;; set SP to -1
+        cond-label
+        "@SP"
+        "A=M"
+        "M=-1"
 
-                    end-label
-                    inc-SP]))))
+        end-label
+        inc-SP]))))
 
 (defn gen-memory-access-asm [op seg idx filename]
   (condp = op
@@ -342,34 +337,52 @@
        "local"
        (s/join
         "\n"
-        [(str "@" (+ LCL idx))
-         "D=M"])
+        ["@LCL"
+         "D=M" ;; D = LCL
+         (str "@" idx)
+         "A=D+A" ;; A = LCL + idx
+         "D=M" ;; D = M[LCL+idx]
+         ])
 
        "argument"
-       (s/join "\n" [(str "@" (+ ARG idx))
-                     "D=M"])
+       (s/join
+        "\n"
+        ["@ARG"
+         "D=M"
+         (str "@" idx)
+         "A=D+A"
+
+         "D=M"])
 
        "this"
-       (s/join "\n" ["@THIS"
-                     "D=M" ;; THIS address
-                     (str "@" idx)
-                     "D=D+A"
-                     "A=D" ;; A = THIS + idx
+       (s/join
+        "\n"
+        ["@THIS"
+         "D=M" ;; D = THIS
+         (str "@" idx)
+         "A=D+A" ;; A = THIS + idx
 
-                     "D=M"])
+         "D=M"])
 
        "that"
-       (s/join "\n" ["@THAT"
-                     "D=M" ;; THIS address
-                     (str "@" idx)
-                     "D=D+A"
-                     "A=D" ;; A = THIS + idx
+       (s/join
+        "\n"
+        ["@THAT"
+         "D=M" ;; D = THAT
+         (str "@" idx)
+         "A=D+A" ;; A = THAT + idx
 
-                     "D=M"])
+         "D=M"])
 
        "temp"
-       (s/join "\n" [(str "@" (+ TEMP idx))
-                     "D=M"])
+       (s/join
+        "\n"
+        ["@TEMP"
+         "D=M" ;; D = TEMP
+         (str "@" idx)
+         "A=D+A" ;; A = TEMP + idx
+
+         "D=M"])
 
        "pointer"
        (condp = idx
@@ -409,12 +422,22 @@
      ;; D=*SP pops top of stack and places the value in D-register
      (condp = seg
        "local"
-       (s/join "\n" [D=*SP
-                     (str "@" (+ LCL idx))])
+       (s/join
+        "\n"
+        [D=*SP
+         "@LCL"
+         "D=M"
+         (str "@" idx)
+         "A=D+A"])
 
        "argument"
-       (s/join "\n" [D=*SP
-                     (str "@" (+ ARG idx))])
+       (s/join
+        "\n"
+        [D=*SP
+         "@ARG"
+         "D=M"
+         (str "@" idx)
+         "A=D+A"])
 
        "this"
        (s/join
@@ -435,22 +458,29 @@
          ])
 
        "that"
-       (s/join "\n" ["@THAT"
-                     "D=M"
-                     (str "@" idx)
-                     "D=D+A"
-                     "@R13"
-                     "M=D" ;; R13 = THAT + idx
+       (s/join
+        "\n"
+        ["@THAT"
+         "D=M"
+         (str "@" idx)
+         "D=D+A"
+         "@R13"
+         "M=D" ;; R13 = THAT + idx
 
-                     D=*SP
+         D=*SP
 
-                     "@R13"
-                     "A=M" ;; A = THAT + idx
-                     ])
+         "@R13"
+         "A=M" ;; A = THAT + idx
+         ])
 
        "temp"
-       (s/join "\n" [D=*SP
-                     (str "@" (+ TEMP idx))])
+       (s/join
+        "\n"
+        [D=*SP
+         "@TEMP"
+         "D=M"
+         (str "@" idx)
+         "A=D+A"])
 
        "pointer"
        (condp = idx
@@ -481,24 +511,25 @@
 ;; functionName$label
 ;; see figure 8.6
 (defn gen-program-flow-asm [op seg idx fn-name]
-  (condp = op
-    "label"
-    (s/join "\n" [(str "(" fn-name "$" seg ")")])
+  (let [prefix (if (empty? fn-name) "" (str fn-name "$"))
+        label (str prefix seg)]
+    (condp = op
+     "label"
+     (s/join "\n" [(str "(" label ")")])
 
-    "goto"
-    (s/join "\n" [(str "@" fn-name "$" seg)
-                  "0;JMP"])
+     "goto"
+     (s/join "\n" [(str "@" label)
+                   "0;JMP"])
 
-    "if-goto"
-    (s/join "\n" [D=*SP ;; pop top of stack
-                  (str "@" fn-name "$" seg)
-                  "D;JNE" ;; jump if stack value != 0
-                  ])))
+     "if-goto"
+     (s/join "\n" [D=*SP ;; pop top of stack
+                   (str "@"  label)
+                   "D;JNE" ;; jump if stack value != 0
+                   ]))))
 
-
-;; TODO
 ;; see figure 8.4 of the stack when functions are called
 ;; see figure 8.5 of the pseudocode generated
+;; see figure 8.8 for the transition from function call to after return
 ;;
 ;; interesting elegance of function frames. the top of the stack can act as a
 ;; new, independent stack. fractal self-similarity? reminds me of the unifying
@@ -508,105 +539,153 @@
 
     "call"
     (let [return-address (new-label!)]
-      (s/join "\n" [;; call f n - call function f, n arguments have been pushed
-                    ;; onto the stack
+      (s/join
+       "\n"
+       [;; call f n - call function f, n arguments have been pushed
+        ;; onto the stack
 
-                    ;; push return-address
-                    (str "@" return-address)
-                    "D=A"
-                    *SP=D
+        ;; push return-address
+        (str "@" return-address)
+        "D=A"
+        *SP=D
 
-                    ;; push LCL
-                    "@LCL"
-                    "D=M"
-                    *SP=D
+        ;; push LCL
+        "@LCL"
+        "D=M"
+        *SP=D
 
-                    ;; push ARG
-                    "@ARG"
-                    "D=M"
-                    *SP=D
+        ;; push ARG
+        "@ARG"
+        "D=M"
+        *SP=D
 
-                    ;; push THIS
-                    "@THIS"
-                    "D=M"
-                    *SP=D
+        ;; push THIS
+        "@THIS"
+        "D=M"
+        *SP=D
 
-                    ;; push THAT
-                    "@THAT"
-                    "D=M"
-                    *SP=D
+        ;; push THAT
+        "@THAT"
+        "D=M"
+        *SP=D
 
-                    ;; ARG = SP-5-n
-                    ;; we just pushed 5 values to the stack
-                    ;; go back 5
-                    ;; we have n args, so go back n
-                    "@SP"
-                    "D=M"
-                    (str "@" (+ 5 idx))
-                    "D=D-A" ;; SP - (5 + n)
-                    "@ARG"
-                    "M=D"
+        ;; ARG = SP-5-n
+        ;; we just pushed 5 values to the stack
+        ;; go back 5
+        ;; we have n args, so go back n
+        "@SP"
+        "D=M"
+        (str "@" (+ 5 idx))
+        "D=D-A" ;; SP - (5 + n)
+        "@ARG"
+        "M=D"
 
-                    ;; LCL = SP
-                    "@SP"
-                    "D=M"
-                    "@LCL"
-                    "M=D"
+        ;; LCL = SP
+        "@SP"
+        "D=M"
+        "@LCL"
+        "M=D"
 
-                    ;; goto f
-                    (str "@" seg)
+        ;; goto f
+        (str "@" seg)
 
-                    ;; (return-address)
-                    (str "(" return-address ")")]))
+        ;; (return-address)
+        (str "(" return-address ")")]))
 
-    ;; function f n - f is filename, n is # of local variables
+    ;; function f k - f is filename, k is # of local variables
     "function"
-    (s/join "\n"
-            (apply conj
-                   ;; label for function entry
-                   [(str "(" seg ")")]
+    (s/join
+     "\n"
+     (apply conj
+            ;; label for function entry
+            [(str "(" seg ")")]
 
-                   ;; initialize all n args to 0
-                   (repeat idx *SP=0)))
-
+            ;; initialize all k local variables to 0
+            (repeat idx *SP=0)))
 
     "return"
-    (s/join "\n" [;; return to the calling function
+    (s/join
+     "\n"
+     [;; return to the calling function
+      "// return"
 
-                  ;; FRAME = R14 = LCL, memory address of first local variable
-                  "@LCL"
-                  "D=M" ;; D = FRAME
-                  "@R14"
-                  "M=D" ;; R14 = FRAME
+      ;; arbitrarily use R14 to store FRAME temp variable
+      ;; FRAME = R14 = LCL, memory address of first local variable
+      "@LCL"
+      "D=M" ;; D = FRAME
+      "@R14"
+      "M=D" ;; R14 = FRAME
 
-                  ;; RET = R15 = *FRAME -5, return address
-                  "A=M" ;; A = FRAME
-                  "D=M" ;; D = *FRAME
-                  "@5"
-                  "D=D-A" ;; D = *FRAME -5
-                  "@R15"
-                  "M=D" ;; R15 = *FRAME -5
+      ;; FRAME-5 is the address that stores the return address
+      ;; see figure 8.4
+      ;; RET = R15 = *(FRAME-5)
+      "@5"
+      "D=D-A" ;; D = FRAME-5
+      "A=D"   ;; A = FRAME-5
+      "D=M"   ;; D = *(FRAME-5) = return address
+      "@R15"
+      "M=D" ;; R15 = *(FRAME-5)
 
-                  ;; *ARG = pop()
-                  D=*SP ;; pop()
-                  "@ARG"
-                  ""
+      ;; the function call has a return value, which is the value at
+      ;; the top of the stack, *SP = M[SP]
+      ;; *ARG = M[ARG] is the first address of the current frame
+      ;; place the return value, *SP, in *ARG
+      D=*SP
+      "@ARG"
+      "A=M" ;; A = ARG
+      "M=D" ;; M[ARG] = *SP
 
-                  ;; SP = ARG+1
-                  ;; THAT = *FRAME -1
-                  "@R14"
-                  "D=M"
+      ;; SP = ARG+1
+      "D=A+1" ;; D = ARG+1
+      "@SP"
+      "M=D"   ;; SP = D
 
-                  ;; THIS = *(FRAME-2)
-                  ;; ARG = *(FRAME-3)
-                  ;; LCL = *(FRAME-4)
+      ;; THAT = *(FRAME-1)
+      "@R14"
+      "D=M"   ;; D = FRAME
+      "D=D-1" ;; D = FRAME-1
+      "A=D"   ;; A = FRAME-1
+      "D=M"   ;; D = *(FRAME-1)
+      "@THAT"
+      "M=D"   ;; THAT = *(FRAME-1)
 
-                  ;; goto RET = R15
-                  "@R15" ;; A = &R15
-                  "A=M"  ;; A = M[&R15] = R15
-                  "0;JMP" ;; Jump to M[R15]
-                  ])
-    ))
+      ;; THIS = *(FRAME-2)
+      "@R14"
+      "D=M"   ;; D = FRAME
+      "@2"    ;; A = 2
+      "D=D-A" ;; D = FRAME-2
+      "A=D"   ;; A = FRAME-2
+      "D=M"   ;; D = *(FRAME-2)
+      "@THIS"
+      "M=D"   ;; THAT = *(FRAME-2)
+
+      ;; ARG = *(FRAME-3)
+      "@R14"
+      "D=M"   ;; D = FRAME
+      "@3"    ;; A = 3
+      "D=D-A" ;; D = FRAME-3
+      "A=D"   ;; A = FRAME-3
+      "D=M"   ;; D = *(FRAME-3)
+      "@ARG"
+      "M=D"   ;; THAT = *(FRAME-3)
+
+
+      ;; TODO this is where it's fucked i believe. the final M[1] wrong
+      ;; LCL = *(FRAME-4)
+      "@R14"
+      "D=M"   ;; D = FRAME
+      "@4"    ;; A = 4
+      "D=D-A" ;; D = FRAME-4
+      "A=D"   ;; A = FRAME-4
+      "D=M"   ;; D = *(FRAME-4)
+      "@LCL"
+      "M=D"   ;; THAT = *(FRAME-4)
+
+      ;; goto RET = R15
+      "@R15" ;; A = &R15
+      "A=M"  ;; A = R15
+      "0;JMP" ;; Jump to M[R15]
+      ])))
 
 (defn translate-vm-file! [file]
   (let [filepath (.getPath file)
@@ -625,7 +704,9 @@
                        {:label label
                         :symbol symbol}))
 
-        !out (atom [init-asm])
+        !out (atom [
+                    ;; init-asm
+                    ])
         !fn-name (atom "")
         lines (with-open [rdr (io/reader file)]
                 (doall (mapv s/trim (line-seq rdr))))]
@@ -644,8 +725,8 @@
                     (contains? #{"push" "pop"} op)
                     (gen-memory-access-asm op seg idx filename-without-ext)
 
-                    (contains? #{"label" "goto" "if-goto" "return"} op)
-                    (gen-program-flow-asm op seg idx)
+                    (contains? #{"label" "goto" "if-goto"} op)
+                    (gen-program-flow-asm op seg idx @!fn-name)
 
                     (contains? #{"call" "function" "return"} op)
                     (do
