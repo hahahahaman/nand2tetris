@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as s]
             [clojure.pprint :refer [pprint]])
+  (:import java.io.File)
   (:gen-class))
 
 (defn get-file-extension
@@ -9,6 +10,15 @@
   https://rosettacode.org/wiki/Extract_file_extension#Clojure"
   [path]
   (second (re-find #"(\.[a-zA-Z0-9]+)$" path)))
+
+
+(defn conj-colls
+  "conj all collections together within a collection
+
+  Example:
+  (conj-colls (list [1 2 3] [4 5 6] [7 8 9])) => [1 2 3 4 5 6 7 8 9]"
+  [colls]
+  (reduce (fn [a b] (apply conj a b)) colls))
 
 (comment
   (def symbol-address-table
@@ -39,47 +49,51 @@
      "R15" 20
 
      "SCREEN" 16384
-     "KBD" 24576}))
+     "KBD" 24576})
 
-;; init addresses
-(def SP 256)
-(def LCL 300)
-(def ARG 400)
-(def THIS 3000)
-(def THAT 3010)
-(def TEMP 5)
+
+  ;; init addresses
+  (def SP 256)
+  (def LCL 300)
+  (def ARG 400)
+  (def THIS 3000)
+  (def THAT 3010)
+  (def TEMP 5))
 
 (def init-asm
   (s/join
    "\n"
    [
-    ;; init stack pointer: M[0] = 256
-    "@256" ;; SP 256
+    ;; init stack pointer: M[0] = 261
+    "@261" ;; SP 261, for whatever reason this chapter has SP start at 261
     "D=A"
     "@SP" ;; stack pointer, at address 0. set A=0
-    "M=D" ;; M[0]=256
+    "M=D" ;; M[0]=261
 
-    "@300" ;; LCL 300
-    "D=A"
-    "@LCL"
-    "M=D"
+    ;; "@300" ;; LCL 300
+    ;; "D=A"
+    ;; "@LCL"
+    ;; "M=D"
 
-    "@400" ;; ARG 400
-    "D=A"
-    "@ARG"
-    "M=D"
+    ;; "@400" ;; ARG 400
+    ;; "D=A"
+    ;; "@ARG"
+    ;; "M=D"
 
-    "@3000" ;; THIS 3000
-    "D=A"
-    "@THIS"
-    "M=D"
+    ;; "@3000" ;; THIS 3000
+    ;; "D=A"
+    ;; "@THIS"
+    ;; "M=D"
 
-    "@3010" ;; THAT 4000
-    "D=A"
-    "@THAT"
-    "M=D"
+    ;; "@3010" ;; THAT 4000
+    ;; "D=A"
+    ;; "@THAT"
+    ;; "M=D"
 
-    ;; TODO call Sys.init
+    ;; call Sys.init
+    "@Sys.init"
+    "0;JMP"
+
     ]))
 
 (def inc-SP
@@ -116,6 +130,7 @@
    "\n"
    ["@SP"
     "M=M-1" ;; dec stack pointer, SP -= 1
+
     "A=M"   ;; A = SP-1,
     "D=M"   ;; D = M[SP-1], which is the value at the top of the stack
     ]))
@@ -229,35 +244,37 @@
     ;; -1 is true, 0 is false
     (let [{cond-sym :symbol cond-label :label} (new-label!)
           {end-sym :symbol end-label :label} (new-label!)]
-      (s/join "\n" [D=*SP
+      (s/join
+       "\n"
+       [D=*SP
 
-                    dec-SP
+        dec-SP
 
-                    "A=M" ;; set A to the SP address
-                    "D=M-D"
+        "A=M" ;; set A to the SP address
+        "D=M-D"
 
-                    ;; where do i jump?
-                    ;; i keep a symbol string with a incrementing
-                    ;; suffix
-                    ;; (LABEL1)
-                    (str "@" cond-sym)
-                    "D;JEQ" ;; jump to the cond-label
+        ;; where do i jump?
+        ;; i keep a symbol string with a incrementing
+        ;; suffix
+        ;; (LABEL1)
+        (str "@" cond-sym)
+        "D;JEQ" ;; jump to the cond-label
 
-                    ;; false, set M[SP]=0
-                    "@SP"
-                    "A=M"
-                    "M=0"
-                    (str "@" end-sym)
-                    "0;JMP"
+        ;; false, set M[SP]=0
+        "@SP"
+        "A=M"
+        "M=0"
+        (str "@" end-sym)
+        "0;JMP"
 
-                    ;; set SP to -1
-                    cond-label
-                    "@SP"
-                    "A=M"
-                    "M=-1"
+        ;; set SP to -1
+        cond-label
+        "@SP"
+        "A=M"
+        "M=-1"
 
-                    end-label
-                    inc-SP]))
+        end-label
+        inc-SP]))
 
     "gt"
     (let [{cond-sym :symbol cond-label :label} (new-label!)
@@ -294,23 +311,22 @@
           {end-sym :symbol end-label :label} (new-label!)]
       (s/join
        "\n"
-       [D=*SP
+       [D=*SP ;; pop stack
 
         dec-SP
-
-        "A=M" ;; set A to the SP address
-        "D=M-D"
+        "A=M" ;; A = M[SP-1]
+        "D=M-D" ;; D = M[SP-1] - M[SP] = x - y
         (str "@" cond-sym)
-        "D;JLT" ;; jump to the cond-label
+        "D;JLT" ;; if (x-y) < 0; jump
 
-        ;; false, set M[SP]=0
+        ;; false, x = 0
         "@SP"
         "A=M"
         "M=0"
         (str "@" end-sym)
         "0;JMP"
 
-        ;; set SP to -1
+        ;; true, x = -1
         cond-label
         "@SP"
         "A=M"
@@ -522,9 +538,13 @@
                    "0;JMP"])
 
      "if-goto"
-     (s/join "\n" [D=*SP ;; pop top of stack
+     (s/join "\n" [
+                   (str "// START if-goto " label)
+                   D=*SP ;; pop top of stack
                    (str "@"  label)
                    "D;JNE" ;; jump if stack value != 0
+
+                   (str "// END if-goto " label)
                    ]))))
 
 ;; see figure 8.4 of the stack when functions are called
@@ -538,14 +558,15 @@
   (condp = op
 
     "call"
-    (let [return-address (new-label!)]
+    (let [{return-address-sym :symbol return-address-label :label} (new-label!)]
       (s/join
        "\n"
        [;; call f n - call function f, n arguments have been pushed
         ;; onto the stack
 
+        (str "// call " seg " " idx)
         ;; push return-address
-        (str "@" return-address)
+        (str "@" return-address-sym)
         "D=A"
         *SP=D
 
@@ -588,9 +609,10 @@
 
         ;; goto f
         (str "@" seg)
+        "0;JMP"
 
         ;; (return-address)
-        (str "(" return-address ")")]))
+        return-address-label]))
 
     ;; function f k - f is filename, k is # of local variables
     "function"
@@ -607,7 +629,7 @@
     (s/join
      "\n"
      [;; return to the calling function
-      "// return"
+      "// START return"
 
       ;; arbitrarily use R14 to store FRAME temp variable
       ;; FRAME = R14 = LCL, memory address of first local variable
@@ -683,16 +705,94 @@
       "@R15" ;; A = &R15
       "A=M"  ;; A = R15
       "0;JMP" ;; Jump to M[R15]
+
+      "// END return"
       ])))
 
-(defn translate-vm-file! [file]
-  (let [filepath (.getPath file)
+(defn translate-file! [file new-label!]
+  (let [file? (.isFile file)
+
+        path (.getPath file)
         filename (.getName file)
-        filename-without-ext (subs filename 0 (- (count filename)
-                                                 (count ".vm")))
-        asm-filepath (str (subs filepath 0 (- (count filepath)
-                                              (count ".vm")))
-                          ".asm")
+        extension (get-file-extension (.getName file))]
+    (if-not file?
+      (println "Skipping" path "not a file.")
+
+      (if-not (= extension ".vm")
+        (println "Skipping" path "not a .vm file.")
+
+        (let [filename-without-ext (subs filename 0 (- (count filename)
+                                                       (count ".vm")))
+              !out (atom [init-asm])
+              !fn-name (atom "")
+              lines (with-open [rdr (io/reader file)]
+                      (doall (mapv s/trim (line-seq rdr))))]
+          (loop [i 0]
+            (when (< i (count lines))
+              (let [line (nth lines i)
+                    [op seg idx-str] (s/split line #"\s")
+                    idx (when idx-str (parse-long idx-str))
+                    asm (cond
+                          (contains? #{"add" "sub" "neg" "and" "or" "not"} op)
+                          (gen-stack-arithmetic-asm op)
+
+                          (contains? #{"eq" "gt" "lt"} op)
+                          (gen-comparison-asm! op new-label!)
+
+                          (contains? #{"push" "pop"} op)
+                          (gen-memory-access-asm op seg idx filename-without-ext)
+
+                          (contains? #{"label" "goto" "if-goto"} op)
+                          (gen-program-flow-asm op seg idx @!fn-name)
+
+                          (contains? #{"call" "function" "return"} op)
+                          (do
+                            (cond (= op "function")
+                                  (reset! !fn-name seg)
+
+                                  ;; there can be multiple returns in a function
+                                  ;; (= op "return")
+                                  ;; (reset! !fn-name "")
+                                  )
+                            (gen-function-calling-asm op seg idx new-label!))
+
+                          ;; comment or empty
+                          (or (= op "") (= op "//" )) nil
+
+                          :else
+                          (println "Line" (inc i)
+                                   ". ERROR: No matching operation"
+                                   op))]
+
+                (when asm (swap! !out conj asm)))
+
+              (recur (inc i))))
+
+          (println "Translated" path)
+
+          @!out)))))
+
+(defn translate-files!
+  "Translate files in filepath.
+
+  If the file-or-dir is a .vm file then translate to .asm
+
+  If the file-or-dir is a directory then translate all .vm files into one .asm"
+  [^File file-or-dir]
+  (let [dir? (.isDirectory file-or-dir)
+        files (if dir? (vec (file-seq file-or-dir)) [file-or-dir])
+
+        filename (.getName file-or-dir)
+        file-extension (get-file-extension filename)
+        path (.getPath file-or-dir)
+        out-filepath (if dir?
+                       (str path "/" filename ".asm")
+                       (when (= file-extension ".vm")
+                         (str
+                          (subs path 0 (- (count path)
+                                          (count ".vm")))
+                          ".asm")))
+
         vm-label "VMLABEL"
         !label-counter (atom 0)
         new-label! (fn []
@@ -701,65 +801,14 @@
                        (swap! !label-counter inc)
                        {:label label
                         :symbol symbol}))
+        all-file-output
+        (->> files
+             (mapv (fn [file] (translate-file! file new-label!)))
+             (filterv some?))
+        lines (conj-colls all-file-output)]
 
-        !out (atom [
-                    ;; init-asm
-                    ])
-        !fn-name (atom "")
-        lines (with-open [rdr (io/reader file)]
-                (doall (mapv s/trim (line-seq rdr))))]
-    (loop [i 0]
-      (when (< i (count lines))
-        (let [line (nth lines i)
-              [op seg idx-str] (s/split line #"\s")
-              idx (when idx-str (parse-long idx-str))
-              asm (cond
-                    (contains? #{"add" "sub" "neg" "and" "or" "not"} op)
-                    (gen-stack-arithmetic-asm op)
-
-                    (contains? #{"eq" "gt" "lt"} op)
-                    (gen-comparison-asm! op new-label!)
-
-                    (contains? #{"push" "pop"} op)
-                    (gen-memory-access-asm op seg idx filename-without-ext)
-
-                    (contains? #{"label" "goto" "if-goto"} op)
-                    (gen-program-flow-asm op seg idx @!fn-name)
-
-                    (contains? #{"call" "function" "return"} op)
-                    (do
-                      (cond (= op "function")
-                            (reset! !fn-name seg)
-
-                            (= op "return")
-                            (reset! !fn-name ""))
-                      (gen-function-calling-asm op seg idx new-label!))
-
-                    ;; comment or empty
-                    (or (= op "") (= op "//" )) nil
-
-                    :else
-                    (println "Line" (inc i)
-                             ". ERROR: No matching operation"
-                             op))]
-
-          (when asm (swap! !out conj asm)))
-
-        (recur (inc i))))
-
-    (write-file! asm-filepath @!out)))
-
-(defn translate-files! [path files]
-  (doseq [file files]
-    (let [file? (.isFile file)
-          extension (get-file-extension (.getName file))]
-      (if (not file?)
-        (println "Skipping" path "not a file.")
-
-        (if (not= extension ".vm")
-          (println "Skipping" path "not a .vm file.")
-
-          (translate-vm-file! file))))))
+    (when (and out-filepath (not-empty lines))
+      (write-file! out-filepath lines))))
 
 (defn usage []
   (println
@@ -782,14 +831,15 @@
     ;; go through each line of the .vm file and out the corresponding assembly
     ;; if the path is a directory, process all .vm files in the directory
     (nth args 0)
-    (let [path (io/file (s/trim (nth args 0)))
-          exists? (.exists path)
-          dir? (.isDirectory path)
-          files (if dir? (vec (file-seq path)) [path])]
+    (let [file-or-dir (io/file (s/trim (nth args 0)))
+          exists? (.exists file-or-dir)]
       (if (not exists?)
-        (println "ERROR:" path " does not exist!")
+        (println "ERROR:" file-or-dir " does not exist!")
 
-        (translate-files! path files)))
+        (translate-files! file-or-dir)))
 
     :else
     (usage)))
+
+(defn ch7-stacktest []
+  (-main "../../07/StackArithmetic/StackTest/StackTest.vm"))
