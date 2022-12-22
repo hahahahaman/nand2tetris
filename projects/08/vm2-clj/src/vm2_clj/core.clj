@@ -11,7 +11,6 @@
   [path]
   (second (re-find #"(\.[a-zA-Z0-9]+)$" path)))
 
-
 (defn conj-colls
   "conj all collections together within a collection
 
@@ -51,7 +50,6 @@
      "SCREEN" 16384
      "KBD" 24576})
 
-
   ;; init addresses
   (def SP 256)
   (def LCL 300)
@@ -64,35 +62,39 @@
   (s/join
    "\n"
    [
-    ;; init stack pointer: M[0] = 261
-    "@261" ;; SP 261, for whatever reason this chapter has SP start at 261
+    ;; "@261" ;; SP 261, for whatever reason FibonacciElement has SP start at 261
+    ;; "D=A"
+    ;; "@SP" ;; stack pointer, at address 0. set A=0
+    ;; "M=D" ;; M[0]=261
+
+    "@256" ;; SP 256, for whatever reason FibonacciElement has SP start at 256
     "D=A"
     "@SP" ;; stack pointer, at address 0. set A=0
-    "M=D" ;; M[0]=261
+    "M=D" ;; M[0]=256
 
-    ;; "@300" ;; LCL 300
-    ;; "D=A"
-    ;; "@LCL"
-    ;; "M=D"
+    "@300" ;; LCL 300
+    "D=A"
+    "@LCL"
+    "M=D"
 
-    ;; "@400" ;; ARG 400
-    ;; "D=A"
-    ;; "@ARG"
-    ;; "M=D"
+    "@400" ;; ARG 400
+    "D=A"
+    "@ARG"
+    "M=D"
 
-    ;; "@3000" ;; THIS 3000
-    ;; "D=A"
-    ;; "@THIS"
-    ;; "M=D"
+    "@3000" ;; THIS 3000
+    "D=A"
+    "@THIS"
+    "M=D"
 
-    ;; "@3010" ;; THAT 4000
-    ;; "D=A"
-    ;; "@THAT"
-    ;; "M=D"
+    "@3010" ;; THAT 4000
+    "D=A"
+    "@THAT"
+    "M=D"
 
     ;; call Sys.init
-    "@Sys.init"
-    "0;JMP"
+    ;; "@Sys.init"
+    ;; "0;JMP"
 
     ]))
 
@@ -393,11 +395,7 @@
        "temp"
        (s/join
         "\n"
-        ["@TEMP"
-         "D=M" ;; D = TEMP
-         (str "@" idx)
-         "A=D+A" ;; A = TEMP + idx
-
+        [(str "@" (+ TEMP idx)) ;; TEMP is not a builtin symbol
          "D=M"])
 
        "pointer"
@@ -427,7 +425,7 @@
 
      "\n"
 
-     ;; second push onto stack
+     ;; then push onto stack
      *SP=D)
 
     ;; pop  s i; pop top of stack and store into s[i]
@@ -493,10 +491,8 @@
        (s/join
         "\n"
         [D=*SP
-         "@TEMP"
-         "D=M"
-         (str "@" idx)
-         "A=D+A"])
+         (str "@" (+ TEMP idx)) ;; TEMP is not a builtin symbol
+         ])
 
        "pointer"
        (condp = idx
@@ -519,7 +515,7 @@
 
      "\n"
 
-     ;; second set value at memory address to D-register value
+     ;; then set value at memory address to D-register value
      "M=D"
      )))
 
@@ -612,7 +608,9 @@
         "0;JMP"
 
         ;; (return-address)
-        return-address-label]))
+        return-address-label
+
+        (str "// END call " seg " " idx)]))
 
     ;; function f k - f is filename, k is # of local variables
     "function"
@@ -660,7 +658,7 @@
       ;; SP = ARG+1
       "D=A+1" ;; D = ARG+1
       "@SP"
-      "M=D"   ;; SP = D
+      "M=D"   ;; SP = ARG+1
 
       ;; THAT = *(FRAME-1)
       "@R14"
@@ -723,8 +721,14 @@
 
         (let [filename-without-ext (subs filename 0 (- (count filename)
                                                        (count ".vm")))
-              !out (atom [init-asm])
-              !fn-name (atom "")
+              !fn-name (atom "Sys.init")
+              !out (atom [(str
+                           init-asm
+                           "\n"
+                           ;; call Sys.init
+                           (gen-function-calling-asm
+                            "call" "Sys.init" 0
+                            new-label!))])
               lines (with-open [rdr (io/reader file)]
                       (doall (mapv s/trim (line-seq rdr))))]
           (loop [i 0]
