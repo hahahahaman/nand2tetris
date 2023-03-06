@@ -1,0 +1,32 @@
+class Main {
+    function void main() {
+
+        var int a, b, c, d;
+
+        var Array points;
+
+        let points = Array.alloc(3);
+
+        let points[0] = Point.new(0, 1);
+
+        let a = 10;
+        let b = 20;
+
+        let c = Math.multiply(a,b);
+        let d = Math.multiply(1,2);
+
+        do Output.printString("yoyoy");
+        do Output.println();
+        do Output.printInt(c);
+        do Output.println();
+        do Output.printInt(d);
+        do Output.println();
+
+        do Screen.drawLine(200,1, 300, 1);
+        do Screen.drawLine(100, 100, 120, 120);
+
+        do Array.deAlloc(points);
+
+        return;
+    }
+}

@@ -1,0 +1,27 @@
+class Shape {
+    field Array points;
+    field int size;
+
+    constructor Shape new(int num_points) {
+        let size = num_points;
+        let points = Array.new(num_points);
+        return this;
+    }
+
+    method void dispose() {
+        var int i;
+        var Point p;
+        let i = 0;
+
+        while (i < size) {
+            let p = points[i];
+            do p.dispose();
+
+            let i = i+1;
+        }
+
+        do Array.deAlloc(points);
+        do Memory.deAlloc(this);
+        return;
+    }
+}
