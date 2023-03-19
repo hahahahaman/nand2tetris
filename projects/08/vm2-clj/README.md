@@ -1,10 +1,15 @@
 # vm2-clj
 
-A Clojure library designed to ... well, that part is up to you.
+Chapter 8, VM implementation part 2.
+
+Call the -main function on a directory containing .vm files, to compile all the file to .asm format.
 
 ## Usage
 
-FIXME
+
+`lein repl`
+
+`(-main "path/to/vm/directory/')`
 
 ## License
 
