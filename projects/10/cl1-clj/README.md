@@ -1,18 +1,16 @@
-# vm2-clj
+# cl1-clj
 
-Chapter 8, VM implementation part 2.
-
-Call the -main function on a directory containing .vm files, to compile all the file to .asm format.
+Jack compiler part 1. Translate .jack into .xml
 
 ## Usage
 
 `lein repl`
 
-`(-main "path/to/vm/directory/')`
+`(-main "/path/to/jack/file")`
 
 ## License
 
-Copyright © 2022 FIXME
+Copyright © 2023 FIXME
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at

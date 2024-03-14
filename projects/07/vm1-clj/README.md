@@ -1,6 +1,6 @@
 # vm1-clj
 
-VM-to-Hack translator for chapter 7.
+VM-to-Hack translator part 1, for chapter 7.
 
 ## Usage
 

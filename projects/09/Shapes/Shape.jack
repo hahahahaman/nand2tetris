@@ -8,6 +8,10 @@ class Shape {
         return this;
     }
 
+    method Array get_points() {
+        return points;
+    }
+
     method void dispose() {
         var int i;
         var Point p;
@@ -20,8 +24,30 @@ class Shape {
             let i = i+1;
         }
 
-        do Array.deAlloc(points);
+        do points.dispose();
         do Memory.deAlloc(this);
+        return;
+    }
+
+    method void draw(){
+        var Point current, next;
+        var int i;
+        var int x;
+
+        let i = size-1;
+
+        while (i > 0) {
+            let current = points[i];
+            let next = points[i-1];
+
+            do Screen.drawLine(current.get_x(), current.get_y(), next.get_x(), next.get_y());
+            let i = i-1;
+        }
+
+        let current = points[size-1];
+        let next = points[0];
+
+        do Screen.drawLine(current.get_x(), current.get_y(), next.get_x(), next.get_y());
         return;
     }
 }

@@ -1,31 +1,25 @@
 class Main {
     function void main() {
-
-        var int a, b, c, d;
-
+        var Shape square;
         var Array points;
 
-        let points = Array.alloc(3);
+        let square = Shape.new(4);
 
-        let points[0] = Point.new(0, 1);
+        let points = square.get_points();
 
-        let a = 10;
-        let b = 20;
+        let points[0] = Point.new(100, 10);
+        let points[1] = Point.new(200, 10);
+        let points[2] = Point.new(200, 110);
+        let points[3] = Point.new(100, 110);
 
-        let c = Math.multiply(a,b);
-        let d = Math.multiply(1,2);
+        do Screen.clearScreen();
+        do Screen.setColor(true);
 
-        do Output.printString("yoyoy");
-        do Output.println();
-        do Output.printInt(c);
-        do Output.println();
-        do Output.printInt(d);
-        do Output.println();
+        // do Screen.drawLine(200,1, 300, 1);
+        // do Screen.drawLine(100, 100, 120, 120);
 
-        do Screen.drawLine(200,1, 300, 1);
-        do Screen.drawLine(100, 100, 120, 120);
-
-        do Array.deAlloc(points);
+        do square.draw();
+        do square.dispose();
 
         return;
     }
