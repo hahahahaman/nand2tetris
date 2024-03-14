@@ -1,6 +1,6 @@
 # vm2-clj
 
-A Clojure library designed to ... well, that part is up to you.
+Virtual Machine II: Program Control
 
 ## Usage
 
